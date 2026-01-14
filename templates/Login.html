@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | Khushali Foundation</title>
+    {% include 'head.html' %}  <!-- Bootstrap + icons assumed -->
+
+    <style>
+        body, html { height: 100%; margin: 0; }
+        .login-bg {
+            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.7)),
+                        url('https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&q=80') center/cover;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .login-card {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(12px);
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+            max-width: 420px;
+            width: 100%;
+            padding: 2.5rem 2rem;
+        }
+        .logo { max-width: 160px; height: auto; margin-bottom: 1.5rem; }
+        .alert { margin-bottom: 1.25rem; display: none; }
+        .btn-primary {
+            background: #6f42c1;
+            border: none;
+            padding: 0.75rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-primary:hover { background: #5a32a3; }
+        .form-control:focus { border-color: #6f42c1; box-shadow: 0 0 0 0.25rem rgba(111,66,193,0.25); }
+    </style>
+</head>
+<body>
+
+<div class="login-bg">
+    <div class="login-card text-center">
+        <img src="{{ url_for('static', filename='images/khushali-logo.png') }}"
+             alt="Khushali Foundation" class="logo mx-auto d-block">
+
+        <h4 class="mb-4 fw-bold">Sign In</h4>
+
+        <!-- Error / success message -->
+        <div id="alertBox" class="alert alert-danger" role="alert"></div>
+
+        <form id="loginForm">
+            <div class="mb-3 text-start">
+                <label class="form-label">Email</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                    <input type="email" class="form-control" id="email"
+                           autocomplete="email" required autofocus>
+                </div>
+            </div>
+
+            <div class="mb-4 text-start">
+                <label class="form-label">Password</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                    <input type="password" class="form-control" id="password"
+                           autocomplete="current-password" required>
+                    <span class="input-group-text" style="cursor:pointer;" onclick="togglePassword()">
+                        <i class="bi bi-eye" id="toggleIcon"></i>
+                    </span>
+                </div>
+            </div>
+
+            <div class="d-grid mb-3">
+                <button type="submit" class="btn btn-primary" id="submitBtn">
+                    Sign In
+                </button>
+            </div>
+
+            <div class="text-center small">
+                <a href="{{ url_for('forgot_password') }}" class="text-decoration-none">Forgot password?</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function togglePassword() {
+    const input = document.getElementById('password');
+    const icon = document.getElementById('toggleIcon');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('bi-eye');
+        icon.classList.add('bi-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('bi-eye-slash');
+        icon.classList.add('bi-eye');
+    }
+}
+
+document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const alertBox = document.getElementById('alertBox');
+    const submitBtn = document.getElementById('submitBtn');
+
+    alertBox.style.display = 'none';
+    alertBox.className = 'alert alert-danger';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Signing in...';
+
+    try {
+        const response = await fetch('/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                email: document.getElementById('email').value.trim(),
+                password: document.getElementById('password').value
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.status === 'success') {
+            // Success
+            alertBox.className = 'alert alert-success';
+            alertBox.textContent = data.message || 'Login successful!';
+            alertBox.style.display = 'block';
+
+            // Store token (you can also use httpOnly cookie later)
+            localStorage.setItem('access_token', data.access_token);
+            localStorage.setItem('user_name', data.user.name || 'User');
+            localStorage.setItem('user_rights', data.user.rights || '0');
+
+            // Redirect after short delay (better UX)
+            setTimeout(() => {
+                window.location.href = '/index';  // or '/' or '/index'
+            }, 800);
+
+        } else {
+            // Error from server
+            alertBox.textContent = data.message || 'Login failed. Please try again.';
+            alertBox.style.display = 'block';
+        }
+    } catch (err) {
+        alertBox.textContent = 'Network error. Please check your connection.';
+        alertBox.style.display = 'block';
+        console.error(err);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In';
+    }
+});
+</script>
+
+</body>
+</html>

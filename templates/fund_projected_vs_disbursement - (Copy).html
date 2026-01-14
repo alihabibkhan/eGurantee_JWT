@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Funds Projected Vs Actual Report</title>
+    {% include 'head.html' %}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .table-responsive {
+            margin-bottom: 1rem;
+        }
+        .pagination .page-item.active .page-link {
+            background-color: #0d9488;
+            border-color: #0d9488;
+        }
+        .pagination .page-item.disabled .page-link {
+            cursor: not-allowed;
+            opacity: 0.65;
+        }
+        .modal-body .row {
+            margin-bottom: 0.5rem;
+        }
+        .modal-body label {
+            font-weight: bold;
+            color: #1e3a8a;
+        }
+        .group-heading {
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .table-sm textarea {
+            width: 100%;
+        }
+        .letter-iframe {
+            width: 100%;
+            height: 700px;
+            border: none;
+            display: block;
+        }
+        .letter-iframe.loading {
+            background: #f8f9fa url('data:image/svg+xml,%3csvg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"%3e%3cpath opacity=".5" fill="%231e3a8a" d="M20 3.333A16.667 16.667 0 1036.667 20 16.68 16.68 0 0020 3.333zm0 30A13.333 13.333 0 1133.333 20 13.34 13.34 0 0120 33.333z"/%3e%3cpath fill="%231e3a8a" d="M26.667 12.667h-4l-6 10h4z"/%3e%3c/svg%3e') no-repeat center;
+        }
+        .letter-error, #ongoing-error {
+            color: #dc3545;
+            text-align: center;
+            padding: 20px;
+        }
+        .action-buttons .btn {
+            margin-right: 0.25rem;
+        }
+        #emailModal .form-group {
+            margin-bottom: 1rem;
+        }
+        .card {
+            margin-top: 1rem;
+            background-color: #ffffff;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+        }
+        .card-header {
+            background-color: #1e3a8a;
+            color: #ffffff;
+        }
+        .modal-content {
+            background-color: #ffffff;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+        }
+        .modal-header {
+            background-color: #1e3a8a;
+            color: #ffffff;
+        }
+        .modal-title, .card-header h5 {
+            color: #ffffff;
+        }
+        .badge-approved {
+            background-color: #34d399;
+            color: #ffffff;
+            margin-left: 5px;
+        }
+        .badge-rejected {
+            background-color: #dc3545;
+            color: #ffffff;
+            margin-left: 5px;
+        }
+        .table-light {
+            background-color: #f8f9fa;
+        }
+        .table tbody tr:nth-child(odd) {
+            background-color: #e6fff7;
+        }
+        .table tbody tr:nth-child(even) {
+            background-color: #ffffff;
+        }
+        .btn-primary {
+            background-color: #0d9488;
+            border-color: #0d9488;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #0b8278;
+            border-color: #0b8278;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            border-color: #6c757d;
+        }
+        .btn-secondary:hover {
+            background-color: #5a6268;
+            border-color: #5a6268;
+        }
+        .btn-info {
+            background-color: #2bcdc3;
+            border-color: #2bcdc3;
+        }
+        .btn-info:hover {
+            background-color: #26b7ae;
+            border-color: #26b7ae;
+        }
+        .btn-success {
+            background-color: #34d399;
+            border-color: #34d399;
+        }
+        .btn-success:hover {
+            background-color: #2ab88a;
+            border-color: #2ab88a;
+        }
+        .form-control, .form-select {
+            border-color: #1e3a8a;
+            color: #1e3a8a;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: #0d9488;
+            box-shadow: 0 0 0 0.2rem rgba(13, 148, 136, 0.25);
+        }
+        .bi, .fas {
+            color: #1e3a8a;
+        }
+        h1.text-muted {
+            color: #1e3a8a !important;
+        }
+        .bucket-row { font-weight: bold; }
+        .sub-row { padding-left: 20px; }
+        .reviewer-enterprise { background-color: #ffe6cc; }
+        .reviewer-student { background-color: #cceeff; }
+        .approver-enterprise { background-color: #e6e6fa; }
+        .approver-student { background-color: #ffcccc; }
+        .total { background-color: #f2e6ff; font-weight: bold; }
+        .highlight-red {
+            background-color: #ffcccc;
+        }
+        .highlight-green {
+            background-color: #ccffcc;
+        }
+    </style>
+</head>
+<body>
+    {% include 'navbar.html' %}
+
+    {% import 'breadcrumbs.html' as brd %}
+    {{ brd.render_Breadcrumbs([{"url": 'fund_projected_vs_disbursement', "label": 'Funds Projected Vs Actual Report'}]) }}
+
+    <div class="mt-3">{% include 'message_box.html' %}</div>
+    <div class="container py-4">
+        <h1 class="mb-3 text-muted">Funds Projected Vs Actual Report</h1>
+
+        <!-- Drop Down for Period Selection -->
+        <div class="mb-3">
+            <label for="periodDropdown" class="form-label">For the Period</label>
+            <select class="form-select" id="periodDropdown" name="period">
+                <option value="Months+Yrs">Months+Yrs</option>
+                <option value="Drop Down - Months+Yrs">Drop Down - Months+Yrs</option>
+            </select>
+            <label for="fromDate" class="form-label">From</label>
+            <input type="text" class="form-control" id="fromDate" name="from">
+            <label for="toDate" class="form-label">To</label>
+            <input type="text" class="form-control" id="toDate" name="to">
+        </div>
+
+        <!-- Data Table Card -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Funds Projected Vs Actual Report</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover" id="fundsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Months</th>
+                                <th>Line Item</th>
+                                <th>Projected</th>
+                                <th>Actual</th>
+                                <th>Variance</th>
+                                <th>% Variance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in result.fund_projection_data %}
+                                <tr data-projected="{{ row.total_projected_disbursement }}" data-recoveries="{{ row.projected_recoveries }}" data-disbursement="{{ row.disbursement }}">
+                                    <td>{{ row.month_year }}</td>
+                                    <td>Disbursement</td>
+                                    <td>{{ '{:,.2f}'.format(row.total_projected_disbursement) }}</td>
+                                    <td>{{ '{:,.2f}'.format(row.disbursement) }}</td>
+                                    <td class="variance"></td>
+                                    <td class="percent-variance"></td>
+                                </tr>
+                                <tr data-projected="{{ row.total_projected_disbursement }}" data-recoveries="{{ row.projected_recoveries }}" data-disbursement="{{ row.disbursement }}">
+                                    <td>{{ row.month_year }}</td>
+                                    <td>Recoveries</td>
+                                    <td>{{ '{:,.2f}'.format(row.projected_recoveries) }}</td>
+                                    <td>{{ '{:,.2f}'.format(row.disbursement / 36) }}</td>
+                                    <td class="variance"></td>
+                                    <td class="percent-variance"></td>
+                                </tr>
+                                <tr data-projected="{{ row.total_projected_disbursement }}" data-recoveries="{{ row.projected_recoveries }}" data-disbursement="{{ row.disbursement }}">
+                                    <td>{{ row.month_year }}</td>
+                                    <td>Net Change</td>
+                                    <td>{{ '{:,.2f}'.format(row.total_projected_disbursement - row.projected_recoveries) }}</td>
+                                    <td>{{ '{:,.2f}'.format(row.disbursement - (row.disbursement / 36)) }}</td>
+                                    <td class="variance"></td>
+                                    <td class="percent-variance"></td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            $('#fundsTable tbody tr').each(function() {
+                var $row = $(this);
+                var projected = parseFloat($row.data('projected'));
+                var recoveries = parseFloat($row.data('recoveries'));
+                var disbursement = parseFloat($row.data('disbursement'));
+                var lineItem = $row.find('td:nth-child(2)').text();
+
+                var actual, variance, percentVariance;
+
+                if (lineItem === 'Disbursement') {
+                    actual = disbursement;
+                    variance = actual - projected;
+                    percentVariance = projected !== 0 ? ((variance / projected) * 100).toFixed(2) : 0;
+                } else if (lineItem === 'Recoveries') {
+                    actual = disbursement / 36;
+                    variance = actual - recoveries;
+                    percentVariance = recoveries !== 0 ? ((variance / recoveries) * 100).toFixed(2) : 0;
+                } else if (lineItem === 'Net Change') {
+                    var projectedNet = projected - recoveries;
+                    var actualNet = disbursement - (disbursement / 36);
+                    variance = actualNet - projectedNet;
+                    percentVariance = projectedNet !== 0 ? ((variance / projectedNet) * 100).toFixed(2) : 0;
+                }
+
+                $row.find('.variance').text(variance !== 0 ? variance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00');
+                $row.find('.percent-variance').text(percentVariance !== 0 ? (percentVariance > 0 ? '+' + percentVariance : percentVariance) + '%' : '0.00%');
+
+                // Highlight based on variance
+                if (variance < 0) {
+                    $row.find('.variance').addClass('highlight-red');
+                    $row.find('.percent-variance').addClass('highlight-red');
+                } else if (variance > 0) {
+                    $row.find('.variance').addClass('highlight-green');
+                    $row.find('.percent-variance').addClass('highlight-green');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

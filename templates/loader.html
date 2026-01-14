@@ -1,0 +1,38 @@
+<style>
+    /* ── NEW: Loading overlay styles ── */
+    #loadingOverlay {
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(255, 255, 255, 0.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        transition: opacity 0.4s ease;
+    }
+    #loadingOverlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+    }
+    .spinner-wrapper {
+        text-align: center;
+    }
+    .spinner-border {
+        width: 4rem;
+        height: 4rem;
+    }
+    .loading-text {
+        margin-top: 1.5rem;
+        font-size: 1.2rem;
+        color: #495057;
+    }
+</style>
+
+
+<!-- Loading overlay – covers content while fetching -->
+<div id="loadingOverlay">
+    <div class="spinner-wrapper">
+        <div class="spinner-border text-primary" role="status"></div>
+        <div class="loading-text">Loading Please Wait...</div>
+    </div>
+</div>
