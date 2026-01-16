@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Tuple, Union
 import traceback
 import os
 
-PPOSTGRES_CONNECTION = os.getenv('POSTGRES_CONNECTION')
+POSTGRES_CONNECTION = os.getenv('POSTGRES_CONNECTION')
 
 
 def db_connection():
