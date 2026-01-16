@@ -44,6 +44,31 @@ def get_pre_disbursements():
         }), 500
 
 
+@application.route('/api/loan-metrics-metadata', methods=['GET'])
+@jwt_required()
+def loan_metrics_metadata():
+    try:
+
+        occupation_list = get_all_occupations()
+        experience_ranges_list = get_all_experience_ranges()
+        loan_metrics = get_all_loan_metrics()
+
+
+        return jsonify({
+            'success': True,
+            'occupation_list': occupation_list,
+            'experience_ranges_list': experience_ranges_list,
+            'loan_metrics': loan_metrics
+        }), 200
+
+    except Exception as e:
+        print('Get loan_metrics_metadata exception:', str(e))
+        return jsonify({
+            'success': False,
+            'message': 'Failed to fetch loan_metrics_metadata'
+        }), 500
+
+
 
 @application.route('/view-rejected-applications')
 def view_rejected_applications():

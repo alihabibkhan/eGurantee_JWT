@@ -115,7 +115,8 @@ def get_disbursement_details(post_disb_id):
         return "<div class='alert alert-danger'>Error loading details</div>"
 
 
-@application.route('/get_on_going_loan_details')
+@application.route('/api/ongoing-loans')
+@jwt_required()
 def get_on_going_loan_details():
     try:
         # Get CNIC from query parameter
@@ -142,14 +143,14 @@ def get_on_going_loan_details():
             record = {
                 'loan_no': row['loan_no'],
                 'cnic': row['cnic'],
-                'disbursed_amount': row['disbursed_amount'],
-                'booked_on': row['booked_on'],
-                'principal_outstanding': row['principal_outstanding'],
+                'disbursed_amount': int(row['disbursed_amount']),
+                'booked_on': (row['booked_on']),
+                'principal_outstanding': int(row['principal_outstanding']),
                 'markup_outstanding': row['markup_outstanding'],
                 'purpose': row['purpose'],
                 'loan_status': row['loan_status'],
-                'overdue_days': row['overdue_days'],
-                'loan_closed_on': row['loan_closed_on'],
+                'overdue_days': int(row['overdue_days']),
+                'loan_closed_on': (row['loan_closed_on']),
                 'mis_date': row['mis_date'].strftime('%Y-%m-%d %H:%M:%S') if row['mis_date'] else None,
                 'product_code': row['product_code']
             }
@@ -306,4 +307,6 @@ def get_post_disbursement_report_data():
         return jsonify({'success': True, 'records': rows})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+
 
