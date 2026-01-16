@@ -3,8 +3,9 @@ from psycopg2 import Error
 import time
 from typing import Optional, List, Dict, Tuple, Union
 import traceback
+import os
 
-POSTGRES_CONNECTION = POSTGRES_CONNECTION = os.getenv('POSTGRES_CONNECTION')
+PPOSTGRES_CONNECTION = os.getenv('POSTGRES_CONNECTION')
 
 
 def db_connection():
