@@ -255,7 +255,7 @@ def api_login():
 
         if user and check_password_hash(user[0]['password'], password):
             # Generate JWT token with user identity (e.g., email or user_id)
-            access_token = create_access_token(identity=user[0]['user_id'])
+            access_token = create_access_token(identity=str(user[0]['user_id']))
             return jsonify({
                 'message': 'Login successful',
                 'token': access_token,
