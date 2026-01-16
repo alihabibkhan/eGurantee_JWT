@@ -4,7 +4,7 @@ import time
 from typing import Optional, List, Dict, Tuple, Union
 import traceback
 
-POSTGRES_CONNECTION = 'postgresql://neondb_owner:npg_3cqWiumCMK9O@ep-cool-mode-a8w2qohv-pooler.eastus2.azure.neon.tech/eguarantee_db?sslmode=require&channel_binding=require' #"postgresql://egurantee_db_user:Z22iIvStQMvSetOU25xOQp3kH6eiFsV5@dpg-d1ll9kmr433s73ds2mjg-a.oregon-postgres.render.com/egurantee_db?sslmode=require" #os.getenv('POSTGRES_CONNECTION')
+POSTGRES_CONNECTION = POSTGRES_CONNECTION = os.getenv('POSTGRES_CONNECTION')
 
 
 def db_connection():
