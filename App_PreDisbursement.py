@@ -620,6 +620,7 @@ def serve_pre_image(image_id):
         # ────────────────────────────────────────────────
         #           Replaced imghdr with filetype
         # ────────────────────────────────────────────────
+        import filetype
         kind = filetype.guess(image_data)
 
         if kind is None:
