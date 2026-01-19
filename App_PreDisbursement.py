@@ -608,7 +608,7 @@ def serve_pre_image(image_id):
         print(
             f"Image data type: {type(image_data)}, length: {len(image_data) if isinstance(image_data, (bytes, memoryview)) else 'N/A'}")
 
-        # Handle possible memoryview (common with bytea)
+        # Handle possible memoryview (common with bytea / psycopg2)
         if isinstance(image_data, memoryview):
             image_data = image_data.tobytes()
             print("Converted memoryview → bytes")
@@ -617,21 +617,30 @@ def serve_pre_image(image_id):
             print("Image data is not in bytes format")
             return jsonify({'success': False, 'error': 'Invalid image data format'}), 500
 
-        import imghdr
-        image_type = imghdr.what(None, h=image_data)
-        print(f"Detected image type: {image_type}")
+        # ────────────────────────────────────────────────
+        #           Replaced imghdr with filetype
+        # ────────────────────────────────────────────────
+        kind = filetype.guess(image_data)
 
-        if not image_type:
+        if kind is None:
+            print("Could not detect image type")
             return jsonify({'success': False, 'error': 'Unsupported image format'}), 415
 
-        mime_type = f"image/{image_type}"
+        mime_type = kind.mime          # e.g. "image/jpeg", "image/png"
+        extension = kind.extension     # e.g. "jpg", "png", "webp"
+
+        print(f"Detected image type: {extension} ({mime_type})")
+
+        # Use the real extension instead of hardcoding .jpg
+        # This prevents broken images when someone downloads a PNG but filename says .jpg
+        download_name = f"pre_image_{image_id}.{extension}"
 
         print("Sending image file response")
         return send_file(
             io.BytesIO(image_data),
             mimetype=mime_type,
             as_attachment=False,
-            download_name=f"pre_image_{image_id}.jpg"
+            download_name=download_name
         )
 
     except Exception as e:

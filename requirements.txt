@@ -61,3 +61,4 @@ gunicorn==23.0.0
 flask-cors==6.0.2
 Flask-Compress==1.23
 Flask-JWT-Extended==4.7.1
+filetype==1.2.0
