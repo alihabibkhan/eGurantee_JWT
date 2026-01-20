@@ -365,7 +365,7 @@ def update_pre_disbursement_temp():
 
         query = f"""
             UPDATE tbl_pre_disbursement_temp
-            SET status = '{status}', Notes = '{notes}', KFT_Approved_Loan_Limit = '{amount_accepted}',
+            SET status = '{status}', Notes = '{notes}', KFT_Approved_Loan_Limit = '{int(float(amount_accepted))}',
                 {update_field} = '{approved_by}', {date_field} = '{approved_date}'
             WHERE pre_disb_temp_id = '{pre_disb_temp_id}'
         """
