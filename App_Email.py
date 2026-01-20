@@ -84,7 +84,7 @@ from application import application
 #         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@application.route('/send-email', methods=['POST'])
+@application.route('/api/send-email', methods=['POST'])
 def send_email():
     try:
         if not is_login() and not (is_admin() or is_executive_approver() or is_approver()):
