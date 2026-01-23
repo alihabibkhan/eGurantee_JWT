@@ -478,6 +478,7 @@ def approval_letter(app_no):
             'father_husband_name': record[0].get('Father_Husband_Name'),
             'cnic': record[0].get('CNIC'),
             'approved_date': record[0].get('approved_date'),
+            'email_status': str(record[0].get('email_status')),
             'logo_url': '/static/images/hbl_logo-removebg-preview.png',  # Flask serves static automatically
             'signature_url': f'/api/signature/current' if is_user_have_sign() else None,
         }
@@ -648,4 +649,5 @@ def serve_pre_image(image_id):
         print(f"!!! EXCEPTION in serve_pre_image: {str(e)}")
         import traceback
         traceback.print_exc()
+
         return jsonify({'success': False, 'error': str(e)}), 500
