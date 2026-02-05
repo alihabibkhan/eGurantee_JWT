@@ -197,134 +197,140 @@ def api_dashboard():
         }), 500
 
 
+@application.route('/api/awaiting-services', methods=['GET'])
+@jwt_required()
+def get_awaiting_services_api():
+    """Get awaiting services dashboard data"""
+    try:
+        # Fetch distinct national council distributions for table headers
+        query_distributions = """
+            SELECT DISTINCT ncd.national_council_distribution_name
+            FROM tbl_national_council_distribution ncd
+            INNER JOIN tbl_branches b
+                ON b.national_council_distribution = ncd.national_council_distribution_id
+            WHERE b.live_branch = '1'
+            ORDER BY ncd.national_council_distribution_name
+        """
+        distributions_result = fetch_records(query_distributions)
+        distributions = [row['national_council_distribution_name'] for row in distributions_result]
 
-@application.route('/awaiting-Service')
-def awaiting_service():
-    # Fetch distinct national council distributions for table headers
-    query_distributions = """
-        SELECT DISTINCT ncd.national_council_distribution_name
-        FROM tbl_national_council_distribution ncd
-        INNER JOIN tbl_branches b
-            ON b.national_council_distribution = ncd.national_council_distribution_id
-        WHERE b.live_branch = '1'
-        ORDER BY ncd.national_council_distribution_name
-    """
-    distributions = [row['national_council_distribution_name'] for row in fetch_records(query_distributions)]
+        # Query for pending applications
+        query_pending = """
+            SELECT 
+                ncd.national_council_distribution_name AS national_council_distribution,
+                CASE 
+                    WHEN pdt."LoanProductCode" LIKE '%Enterprise%' THEN 'Enterprise'
+                    WHEN pdt."LoanProductCode" = 'Student' THEN 'Student'
+                    ELSE 'Other'
+                END AS loan_product_category,
+                CASE 
+                    WHEN u.rights = '1' THEN 'Reviewer'
+                    WHEN u.rights = '2' THEN 'Approver'
+                    ELSE 'Unknown'
+                END AS user_role,
+                COUNT(*) AS pending_application_count
+            FROM tbl_pre_disbursement_temp pdt
+            INNER JOIN tbl_branches b 
+                ON pdt."Branch_Name" LIKE CONCAT('%', b."branch_code", '%') 
+                AND b."live_branch" = '1'
+            INNER JOIN tbl_users u 
+                ON u.assigned_branch = b.role
+                AND u."active" = '1' 
+                AND u.rights IN ('1', '2')
+            LEFT JOIN tbl_national_council_distribution ncd
+                ON b.national_council_distribution = ncd.national_council_distribution_id
+            WHERE pdt.Status = '1'
+            GROUP BY 
+                ncd.national_council_distribution_name,
+                CASE 
+                    WHEN pdt."LoanProductCode" LIKE '%Enterprise%' THEN 'Enterprise'
+                    WHEN pdt."LoanProductCode" = 'Student' THEN 'Student'
+                    ELSE 'Other'
+                END,
+                u.rights
+            ORDER BY 
+                ncd.national_council_distribution_name,
+                loan_product_category,
+                user_role
+        """
+        records_pending = fetch_records(query_pending)
 
-    # Query for pending applications
-    query_pending = """
-        SELECT 
-            ncd.national_council_distribution_name AS national_council_distribution,
-            CASE 
-                WHEN pdt."LoanProductCode" LIKE '%Enterprise%' THEN 'Enterprise'
-                WHEN pdt."LoanProductCode" = 'Student' THEN 'Student'
-                ELSE 'Other'
-            END AS loan_product_category,
-            CASE 
-                WHEN u.rights = '1' THEN 'Reviewer'
-                WHEN u.rights = '2' THEN 'Approver'
-                ELSE 'Unknown'
-            END AS user_role,
-            COUNT(*) AS pending_application_count
-        FROM tbl_pre_disbursement_temp pdt
-        INNER JOIN tbl_branches b 
-            ON pdt."Branch_Name" LIKE CONCAT('%', b."branch_code", '%') 
-            AND b."live_branch" = '1'
-        INNER JOIN tbl_users u 
-            ON u.assigned_branch = b.role
-            AND u."active" = '1' 
-            AND u.rights IN ('1', '2')
-        LEFT JOIN tbl_national_council_distribution ncd
-            ON b.national_council_distribution = ncd.national_council_distribution_id
-        WHERE pdt.Status = '1'
-        GROUP BY 
-            ncd.national_council_distribution_name,
-            CASE 
-                WHEN pdt."LoanProductCode" LIKE '%Enterprise%' THEN 'Enterprise'
-                WHEN pdt."LoanProductCode" = 'Student' THEN 'Student'
-                ELSE 'Other'
-            END,
-            u.rights
-        ORDER BY 
-            ncd.national_council_distribution_name,
-            loan_product_category,
-            user_role
-    """
-    records_pending = fetch_records(query_pending)
-    print(records_pending)
+        # Organize data for pending applications
+        data_pending = {}
+        for record in records_pending:
+            dist = record['national_council_distribution'] or 'Unknown'
+            prod = record['loan_product_category']
+            role = record['user_role']
+            count = record['pending_application_count']
+            key = f"{dist}_{prod}_{role}"
+            data_pending[key] = data_pending.get(key, 0) + int(count)
 
-    # Organize data for pending applications
-    data_pending = {}
-    for record in records_pending:
-        dist = record['national_council_distribution'] or 'Unknown'
-        prod = record['loan_product_category']
-        role = record['user_role']
-        count = record['pending_application_count']
-        key = (dist, prod, role)
-        data_pending[key] = data_pending.get(key, 0) + int(count)
+        # Query for agreed applications
+        query_agreed = """
+            SELECT 
+                ncd.national_council_distribution_name AS national_council_distribution,
+                COUNT(*) AS agreed_application_count
+            FROM tbl_pre_disbursement_temp pdt
+            INNER JOIN tbl_branches b 
+                ON pdt."Branch_Name" LIKE CONCAT('%', b."branch_code", '%') 
+                AND b."live_branch" = '1'
+            LEFT JOIN tbl_national_council_distribution ncd
+                ON b.national_council_distribution = ncd.national_council_distribution_id
+            WHERE pdt.Status IN ('2', '5')
+                AND DATE_TRUNC('month', pdt.approved_date) = DATE_TRUNC('month', CURRENT_DATE)
+            GROUP BY ncd.national_council_distribution_name
+            ORDER BY ncd.national_council_distribution_name
+        """
+        records_agreed = fetch_records(query_agreed)
 
-    print(data_pending)
+        # Organize data for agreed applications
+        data_agreed = {}
+        for record in records_agreed:
+            dist = record['national_council_distribution'] or 'Unknown'
+            count = record['agreed_application_count']
+            data_agreed[dist] = data_agreed.get(dist, 0) + int(count)
 
-    # Query for agreed applications
-    query_agreed = """
-        SELECT 
-            ncd.national_council_distribution_name AS national_council_distribution,
-            COUNT(*) AS agreed_application_count
-        FROM tbl_pre_disbursement_temp pdt
-        INNER JOIN tbl_branches b 
-            ON pdt."Branch_Name" LIKE CONCAT('%', b."branch_code", '%') 
-            AND b."live_branch" = '1'
-        LEFT JOIN tbl_national_council_distribution ncd
-            ON b.national_council_distribution = ncd.national_council_distribution_id
-        WHERE pdt.Status IN ('2', '5')
-            AND DATE_TRUNC('month', pdt.approved_date) = DATE_TRUNC('month', CURRENT_DATE)
-        GROUP BY ncd.national_council_distribution_name
-        ORDER BY ncd.national_council_distribution_name
-    """
-    records_agreed = fetch_records(query_agreed)
-    print(records_agreed)
+        # Query for rejected applications
+        query_rejected = """
+            SELECT 
+                ncd.national_council_distribution_name AS national_council_distribution,
+                COUNT(*) AS rejected_application_count
+            FROM tbl_pre_disbursement_temp pdt
+            INNER JOIN tbl_branches b 
+                ON pdt."Branch_Name" LIKE CONCAT('%', b."branch_code", '%') 
+                AND b."live_branch" = '1'
+            LEFT JOIN tbl_national_council_distribution ncd
+                ON b.national_council_distribution = ncd.national_council_distribution_id
+            WHERE pdt.Status IN ('3', '6')
+                AND DATE_TRUNC('month', pdt.approved_date) = DATE_TRUNC('month', CURRENT_DATE)
+            GROUP BY ncd.national_council_distribution_name
+            ORDER BY ncd.national_council_distribution_name
+        """
+        records_rejected = fetch_records(query_rejected)
 
-    # Organize data for agreed applications
-    data_agreed = {}
-    for record in records_agreed:
-        dist = record['national_council_distribution'] or 'Unknown'
-        count = record['agreed_application_count']
-        data_agreed[(dist,)] = data_agreed.get((dist,), 0) + int(count)
+        # Organize data for rejected applications
+        data_rejected = {}
+        for record in records_rejected:
+            dist = record['national_council_distribution'] or 'Unknown'
+            count = record['rejected_application_count']
+            data_rejected[dist] = data_rejected.get(dist, 0) + int(count)
 
-    print(data_agreed)
+        return jsonify({
+            'success': True,
+            'data': {
+                'distributions': distributions,
+                'pending_data': data_pending,
+                'agreed_data': data_agreed,
+                'rejected_data': data_rejected
+            }
+        }), 200
 
-    # Query for rejected applications
-    query_rejected = """
-        SELECT 
-            ncd.national_council_distribution_name AS national_council_distribution,
-            COUNT(*) AS rejected_application_count
-        FROM tbl_pre_disbursement_temp pdt
-        INNER JOIN tbl_branches b 
-            ON pdt."Branch_Name" LIKE CONCAT('%', b."branch_code", '%') 
-            AND b."live_branch" = '1'
-        LEFT JOIN tbl_national_council_distribution ncd
-            ON b.national_council_distribution = ncd.national_council_distribution_id
-        WHERE pdt.Status IN ('3', '6')
-            AND DATE_TRUNC('month', pdt.approved_date) = DATE_TRUNC('month', CURRENT_DATE)
-        GROUP BY ncd.national_council_distribution_name
-        ORDER BY ncd.national_council_distribution_name
-    """
-    records_rejected = fetch_records(query_rejected)
-    print(records_rejected)
-
-    # Organize data for rejected applications
-    data_rejected = {}
-    for record in records_rejected:
-        dist = record['national_council_distribution'] or 'Unknown'
-        count = record['rejected_application_count']
-        data_rejected[(dist,)] = data_rejected.get((dist,), 0) + int(count)
-
-    print(data_rejected)
-    return render_template('pending_applications.html', 
-                         data_pending=data_pending, 
-                         data_agreed=data_agreed, 
-                         data_rejected=data_rejected, 
-                         distributions=distributions)
+    except Exception as e:
+        print('Awaiting services exception:- ', str(e))
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch awaiting services data'
+        }), 500
 
 
 from App_Auth import *
