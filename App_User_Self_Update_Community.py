@@ -11,11 +11,20 @@ def get_community_service_dashboard():
         if not user_id:
             return jsonify({'error': 'Unauthorized'}), 401
 
+        # Fetch data
+        volunteer_info = get_all_user_data_by_id(user_id)
+        user_privileges = get_all_user_privileges_by_user_id(user_id)
+        service_hours = get_user_comm_svc_hours_by_user_id(user_id)
+
+        # Ensure all data is JSON serializable
         content = {
-            'volunteer_info': get_all_user_data_by_id(user_id),
-            'user_privileges': get_all_user_privileges_by_user_id(user_id),
-            'service_hours': get_user_comm_svc_hours_by_user_id(user_id),
+            'volunteer_info': volunteer_info or {},
+            'user_privileges': user_privileges or [],
+            'service_hours': service_hours or [],
         }
+
+        # Debug log
+        print(f'Dashboard data for user {user_id}: {content}')
 
         return jsonify({
             'success': True,
@@ -24,6 +33,8 @@ def get_community_service_dashboard():
 
     except Exception as e:
         print('Community service dashboard exception:- ', str(e))
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': 'Failed to fetch community service data'
@@ -80,7 +91,7 @@ def create_community_service_hours():
         return jsonify({
             'success': True,
             'message': 'Community service hours created successfully',
-            'cum_sev_hr_id': result[0]['cum_sev_hr_id'] if result else None
+            'cum_sev_hr_id': result if result else None
         }), 201
 
     except Exception as e:
