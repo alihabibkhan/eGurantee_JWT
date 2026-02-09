@@ -13,6 +13,8 @@ def api_get_branches():
     if not (is_admin() or is_executive_approver()):
         return jsonify({"error": "insufficient permissions"}), 403
 
+    bank_details = get_all_bank_details()
+
     try:
         payload = {
             "branches": get_all_branches_info(),
@@ -20,6 +22,7 @@ def api_get_branches():
             "national_council_distributions": get_all_national_council_distributions(),
             "kft_distributions": get_all_kft_distributions(),
             "branch_roles": get_all_branch_roles(),
+            'bank_details': bank_details
         }
         return jsonify({"status": "ok", "data": payload}), 200
 
