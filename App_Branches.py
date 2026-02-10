@@ -48,21 +48,25 @@ def api_branch_crud(branch_id=None):
         return jsonify({"error": "insufficient permissions"}), 403
 
     try:
+        # ── GET ────────────────────────────────────────────────────────
         if request.method == 'GET':
             if not branch_id:
                 print("   → GET: missing branch_id")
                 return jsonify({"error": "branch_id required"}), 400
 
             print(f"   → GET branch_id={branch_id}")
-            query = """
+            query = f"""
                 SELECT branch_id, branch, branch_code, branch_name, role, area, area_name,
                        branch_manager, email, bank_id, bank_distribution, kft_distribution,
                        national_council_distribution, live_branch, created_by, created_date,
                        modified_by, modified_date
                 FROM tbl_branches
-                WHERE branch_id = %s AND live_branch != 3
+                WHERE branch_id = {branch_id} AND live_branch != 3
             """
-            result = fetch_records(query, (branch_id,))
+            print("   → GET query:")
+            print(query)
+
+            result = fetch_records(query)  # assuming fetch_records accepts query only now
 
             if not result:
                 print(f"   → Branch not found or deleted: {branch_id}")
@@ -71,7 +75,7 @@ def api_branch_crud(branch_id=None):
             print(f"   → GET success - returning branch {branch_id}")
             return jsonify({"status": "ok", "data": result[0]}), 200
 
-        # ── CREATE / UPDATE ───────────────────────────────────────
+        # ── CREATE / UPDATE ────────────────────────────────────────────
         data = request.get_json(silent=True)
         print(f"   → JSON payload received: {data}")
 
@@ -110,44 +114,56 @@ def api_branch_crud(branch_id=None):
             "live_branch": data['live_branch'],
         }
 
-        print("   → Fields prepared for SQL:")
+        print("   → Fields prepared:")
         for k, v in fields.items():
             print(f"       {k: <26} : {v}")
 
-        escaped = {k: escape_sql_string(v) if isinstance(v, str) else v
-                   for k, v in fields.items()}
+        # Helper to escape only strings
+        esc = lambda v: escape_sql_string(v) if isinstance(v, str) else v
 
         if request.method == 'POST':
-            print("   → CREATE branch operation")
-            query = """
+            print("   → CREATE branch (f-string style)")
+
+            query = f"""
                 INSERT INTO tbl_branches (
                     branch_code, branch_name, role, area, email, bank_id,
                     bank_distribution, kft_distribution, national_council_distribution,
                     live_branch, created_by, created_date, modified_by, modified_date,
                     area_name, branch, branch_manager
                 ) VALUES (
-                    %(branch_code)s, %(branch_name)s, %(role)s, %(area)s, %(email)s, %(bank_id)s,
-                    %(bank_distribution)s, %(kft_distribution)s, %(national_council_distribution)s,
-                    %(live_branch)s, %(user_id)s, %(now)s, %(user_id)s, %(now)s,
-                    %(area_name)s, %(branch)s, %(branch_manager)s
+                    '{esc(fields['branch_code'])}',
+                    '{esc(fields['branch_name'])}',
+                    '{esc(fields['role'])}',
+                    '{esc(fields['area'])}',
+                    '{esc(fields['email'])}',
+                    {fields['bank_id']},
+                    {fields['bank_distribution'] if fields['bank_distribution'] is not None else 'NULL'},
+                    {fields['kft_distribution'] if fields['kft_distribution'] is not None else 'NULL'},
+                    {fields['national_council_distribution'] if fields['national_council_distribution'] is not None else 'NULL'},
+                    {fields['live_branch']},
+                    {user_id},
+                    '{now}',
+                    {user_id},
+                    '{now}',
+                    '{esc(fields['area_name'])}',
+                    '{esc(fields['branch'])}',
+                    '{esc(fields['branch_manager'])}'
                 )
                 RETURNING branch_id
             """
-            params = {**escaped, "user_id": user_id, "now": now}
 
-            print("   → Executing INSERT with params:")
-            print(f"       user_id = {user_id}")
-            print(f"       now     = {now}")
+            print("   → Generated INSERT query:")
+            print(query)
 
-            result = execute_command(query, params)
+            result = execute_command(query)  # ← only query
             new_id = result if result else None
 
             if new_id:
                 print(f"   → CREATE SUCCESS → new branch_id = {new_id}")
+                return jsonify({"status": "created", "branch_id": new_id}), 201
             else:
-                print("   → CREATE returned no branch_id (possible issue)")
-
-            return jsonify({"status": "created", "branch_id": new_id}), 201
+                print("   → CREATE returned no branch_id")
+                return jsonify({"status": "created", "branch_id": None}), 201
 
         else:  # PATCH
             if not branch_id:
@@ -157,33 +173,37 @@ def api_branch_crud(branch_id=None):
             print(f"   → PATCH branch_id={branch_id}")
 
             set_parts = []
-            params = {}
-            for k, v in escaped.items():
-                if k in data:
-                    set_parts.append(f"{k} = %({k})s")
-                    params[k] = v
+            for key in fields:
+                value = fields[key]
+                if key in data:  # only fields actually sent by client
+                    if value is None:
+                        set_parts.append(f"{key} = NULL")
+                    elif isinstance(value, str):
+                        set_parts.append(f"{key} = '{esc(value)}'")
+                    else:
+                        # numbers, booleans, etc.
+                        set_parts.append(f"{key} = {value}")
 
             if not set_parts:
                 print("   → PATCH: no fields to update")
                 return jsonify({"error": "no fields to update"}), 400
 
-            params["user_id"] = user_id
-            params["now"] = now
-            params["branch_id"] = branch_id
-
             set_clause = ", ".join(set_parts)
+
             query = f"""
                 UPDATE tbl_branches
                 SET {set_clause},
-                    modified_by = %(user_id)s,
-                    modified_date = %(now)s
-                WHERE branch_id = %(branch_id)s
+                    modified_by = {user_id},
+                    modified_date = '{now}'
+                WHERE branch_id = {branch_id}
                 AND live_branch != 3
                 RETURNING branch_id
             """
 
-            print(f"   → UPDATE query built → setting {len(set_parts)} field(s)")
-            result = execute_command(query, params)
+            print("   → Generated UPDATE query:")
+            print(query)
+
+            result = execute_command(query)
 
             if not result:
                 print(f"   → PATCH failed: branch not found or deleted (id={branch_id})")
