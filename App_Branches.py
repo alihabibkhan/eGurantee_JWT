@@ -41,14 +41,19 @@ def api_get_branches():
 @jwt_required()
 def api_branch_crud(branch_id=None):
     identity = get_jwt_identity()
+    print(f"→ api_branch_crud | method={request.method} | branch_id={branch_id} | user={identity}")
+
     if not (is_admin() or is_executive_approver()):
+        print("   → Access denied: not admin or executive approver")
         return jsonify({"error": "insufficient permissions"}), 403
 
     try:
         if request.method == 'GET':
             if not branch_id:
+                print("   → GET: missing branch_id")
                 return jsonify({"error": "branch_id required"}), 400
 
+            print(f"   → GET branch_id={branch_id}")
             query = """
                 SELECT branch_id, branch, branch_code, branch_name, role, area, area_name,
                        branch_manager, email, bank_id, bank_distribution, kft_distribution,
@@ -58,14 +63,20 @@ def api_branch_crud(branch_id=None):
                 WHERE branch_id = %s AND live_branch != 3
             """
             result = fetch_records(query, (branch_id,))
+
             if not result:
+                print(f"   → Branch not found or deleted: {branch_id}")
                 return jsonify({"error": "branch not found or deleted"}), 404
 
+            print(f"   → GET success - returning branch {branch_id}")
             return jsonify({"status": "ok", "data": result[0]}), 200
 
-        # ── CREATE or UPDATE ───────────────────────────────────────
-        data = request.get_json()
+        # ── CREATE / UPDATE ───────────────────────────────────────
+        data = request.get_json(silent=True)
+        print(f"   → JSON payload received: {data}")
+
         if not data:
+            print("   → No JSON payload or invalid JSON")
             return jsonify({"error": "JSON payload required"}), 400
 
         required_fields = [
@@ -74,10 +85,14 @@ def api_branch_crud(branch_id=None):
         ]
         missing = [f for f in required_fields if f not in data]
         if missing:
+            print(f"   → Validation failed - missing fields: {missing}")
             return jsonify({"error": "missing fields", "fields": missing}), 400
+
+        print("   → All required fields present → proceeding")
 
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         user_id = get_current_user_id()
+        print(f"   → current user_id={user_id} | timestamp={now}")
 
         fields = {
             "branch": data['branch'],
@@ -95,12 +110,15 @@ def api_branch_crud(branch_id=None):
             "live_branch": data['live_branch'],
         }
 
-        # Prepare escaped values (still using your escape function)
+        print("   → Fields prepared for SQL:")
+        for k, v in fields.items():
+            print(f"       {k: <26} : {v}")
+
         escaped = {k: escape_sql_string(v) if isinstance(v, str) else v
                    for k, v in fields.items()}
 
         if request.method == 'POST':
-            # CREATE
+            print("   → CREATE branch operation")
             query = """
                 INSERT INTO tbl_branches (
                     branch_code, branch_name, role, area, email, bank_id,
@@ -116,24 +134,37 @@ def api_branch_crud(branch_id=None):
                 RETURNING branch_id
             """
             params = {**escaped, "user_id": user_id, "now": now}
+
+            print("   → Executing INSERT with params:")
+            print(f"       user_id = {user_id}")
+            print(f"       now     = {now}")
+
             result = execute_command(query, params)
             new_id = result if result else None
+
+            if new_id:
+                print(f"   → CREATE SUCCESS → new branch_id = {new_id}")
+            else:
+                print("   → CREATE returned no branch_id (possible issue)")
 
             return jsonify({"status": "created", "branch_id": new_id}), 201
 
         else:  # PATCH
             if not branch_id:
+                print("   → PATCH: missing branch_id")
                 return jsonify({"error": "branch_id required"}), 400
 
-            # Build SET clause dynamically (only fields that were sent)
+            print(f"   → PATCH branch_id={branch_id}")
+
             set_parts = []
             params = {}
             for k, v in escaped.items():
-                if k in data:  # only update fields that were actually sent
+                if k in data:
                     set_parts.append(f"{k} = %({k})s")
                     params[k] = v
 
             if not set_parts:
+                print("   → PATCH: no fields to update")
                 return jsonify({"error": "no fields to update"}), 400
 
             params["user_id"] = user_id
@@ -150,15 +181,26 @@ def api_branch_crud(branch_id=None):
                 AND live_branch != 3
                 RETURNING branch_id
             """
+
+            print(f"   → UPDATE query built → setting {len(set_parts)} field(s)")
             result = execute_command(query, params)
 
             if not result:
+                print(f"   → PATCH failed: branch not found or deleted (id={branch_id})")
                 return jsonify({"error": "branch not found or already deleted"}), 404
 
+            print(f"   → PATCH SUCCESS → branch_id={result}")
             return jsonify({"status": "updated"}), 200
 
     except Exception as exc:
-        print("api_branch_crud error:", str(exc))
+        print("╔════════════════════════════════════════════╗")
+        print("║         api_branch_crud EXCEPTION          ║")
+        print("╚════════════════════════════════════════════╝")
+        print(f"Error type    : {type(exc).__name__}")
+        print(f"Error message : {str(exc)}")
+        import traceback
+        print("Traceback:")
+        traceback.print_exc()
         return jsonify({"status": "error", "message": "internal error"}), 500
 
 
