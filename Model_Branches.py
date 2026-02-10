@@ -12,11 +12,11 @@ def get_all_branches_info():
     #     WHERE b.live_branch = '1'
     # """
     query = """
-        SELECT b.branch_id, b.branch_code, br.branch_role_name AS role, b.branch_name, b.area, b.branch, b.area_name, 
+        SELECT b.branch_id, b.branch_code, br.branch_role_name AS role, br.branch_role_id, b.branch_name, b.area, b.branch, b.area_name, 
                b.branch_manager, b.email, b.bank_id, bd.bank_code, 
-               bdd.bank_distribution_name AS bank_distribution, 
-               ncd.national_council_distribution_name AS national_council_distribution, 
-               kd.kft_distribution_name AS kft_distribution, 
+               bdd.bank_distribution_name AS bank_distribution, bdd.bank_distribution_id,
+               ncd.national_council_distribution_name AS national_council_distribution, ncd.national_council_distribution_id,
+               kd.kft_distribution_name AS kft_distribution, kd.kft_distribution_id,
                u.name AS createdBy, b.created_date
         FROM tbl_branches b 
         LEFT JOIN tbl_users u ON u.user_id = b.created_by AND u.active = '1'
