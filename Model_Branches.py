@@ -17,15 +17,16 @@ def get_all_branches_info():
                bdd.bank_distribution_name AS bank_distribution, bdd.bank_distribution_id,
                ncd.national_council_distribution_name AS national_council_distribution, ncd.national_council_distribution_id,
                kd.kft_distribution_name AS kft_distribution, kd.kft_distribution_id,
-               u.name AS createdBy, b.created_date
+               u.name AS createdBy, b.created_date, u1.name AS modifiedBy, b.modified_date, b.live_branch
         FROM tbl_branches b 
         LEFT JOIN tbl_users u ON u.user_id = b.created_by AND u.active = '1'
+        LEFT JOIN tbl_users u1 ON u1.user_id = b.modified_by AND u.active = '1'
         LEFT JOIN tbl_bank_details bd ON bd.bank_id = b.bank_id
         LEFT JOIN tbl_bank_distribution bdd ON bdd.bank_distribution_id = b.bank_distribution
         LEFT JOIN tbl_national_council_distribution ncd ON ncd.national_council_distribution_id = b.national_council_distribution
         LEFT JOIN tbl_kft_distribution kd ON kd.kft_distribution_id = b.kft_distribution
         LEFT JOIN tbl_branch_role br ON br.branch_role_id = b.role
-        WHERE b.live_branch = '1'
+        WHERE b.live_branch in ('1', '2')
     """
     result = fetch_records(query)
     print(result)

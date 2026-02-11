@@ -117,16 +117,6 @@ def api_branch_crud(branch_id=None):
         for k, v in sorted(fields.items()):
             print(f"      {k: <28}: {v}")
 
-        # ────────────────────────────────────────────────────────────────
-        # Helper: format value for SQL (NO surrounding quotes here!)
-        def sql_value(v):
-            if v is None:
-                return 'NULL'
-            if isinstance(v, str):
-                return f"'{escape_sql_string(v)}'"
-            # numbers, booleans, etc → direct insertion
-            return str(v)
-
         # ── CREATE (POST) ────────────────────────────────────────────────
         if request.method == 'POST':
             query = f"""
@@ -136,23 +126,23 @@ def api_branch_crud(branch_id=None):
                     live_branch, created_by, created_date, modified_by, modified_date,
                     area_name, branch, branch_manager
                 ) VALUES (
-                    {sql_value(fields['branch_code'])},
-                    {sql_value(fields['branch_name'])},
-                    {sql_value(fields['role'])},
-                    {sql_value(fields['area'])},
-                    {sql_value(fields['email'])},
-                    {sql_value(fields['bank_id'])},
-                    {sql_value(fields['bank_distribution'])},
-                    {sql_value(fields['kft_distribution'])},
-                    {sql_value(fields['national_council_distribution'])},
-                    {sql_value(fields['live_branch'])},
-                    {sql_value(user_id)},
-                    {sql_value(now)},
-                    {sql_value(user_id)},
-                    {sql_value(now)},
-                    {sql_value(fields['area_name'])},
-                    {sql_value(fields['branch'])},
-                    {sql_value(fields['branch_manager'])}
+                    '{fields['branch_code']}',
+                    '{(fields['branch_name'])}',
+                    '{(fields['role'])}',
+                    '{(fields['area'])}',
+                    '{(fields['email'])}',
+                    '{(fields['bank_id'])}',
+                    '{(fields['bank_distribution'])}',
+                    '{(fields['kft_distribution'])}',
+                    '{(fields['national_council_distribution'])}',
+                    '{(fields['live_branch'])}',
+                    '{(user_id)}',
+                    '{(now)}',
+                    '{(user_id)}',
+                    '{(now)}',
+                    '{(fields['area_name'])}',
+                    '{(fields['branch'])}',
+                    '{(fields['branch_manager'])}'
                 )
                 RETURNING branch_id
             """
@@ -179,7 +169,7 @@ def api_branch_crud(branch_id=None):
 
             for key, value in fields.items():
                 if key in data:  # only fields actually sent
-                    set_clauses.append(f"{key} = {sql_value(value)}")
+                    set_clauses.append(f"{key} = '{(value)}'")
 
             if not set_clauses:
                 print("   → No fields to update")
@@ -190,9 +180,9 @@ def api_branch_crud(branch_id=None):
             query = f"""
                 UPDATE tbl_branches
                 SET {set_clause},
-                    modified_by = {sql_value(user_id)},
-                    modified_date = {sql_value(now)}
-                WHERE branch_id = {branch_id}
+                    modified_by = '{(user_id)}',
+                    modified_date = '{(now)}'
+                WHERE branch_id = '{branch_id}'
                   AND live_branch != 3
                 RETURNING branch_id
             """
@@ -202,12 +192,8 @@ def api_branch_crud(branch_id=None):
 
             result = execute_command(query)
 
-            if result is not None:
-                print(f"   → Updated branch_id = {result}")
-                return jsonify({"status": "updated"}), 200
-            else:
-                print(f"   → Branch not found or deleted: {branch_id}")
-                return jsonify({"error": "branch not found or already deleted"}), 404
+            print(f"   → Updated branch_id = {result}")
+            return jsonify({"status": "updated"}), 200
 
     except Exception as exc:
         print("═" * 60)
@@ -231,22 +217,23 @@ def api_delete_branch(branch_id):
         return jsonify({"error": "insufficient permissions"}), 403
 
     try:
+        print('branch_id:- ', branch_id)
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         user_id = get_current_user_id()
 
-        query = """
+        query = f"""
             UPDATE tbl_branches
             SET live_branch = 3,
-                modified_by = %s,
-                modified_date = %s
-            WHERE branch_id = %s
+                modified_by = '{user_id}',
+                modified_date = '{str(now)}'
+            WHERE branch_id = '{str(branch_id)}'
             AND live_branch != 3
             RETURNING branch_id
         """
-        result = execute_command(query, (user_id, now, branch_id))
 
-        if not result:
-            return jsonify({"error": "branch not found or already deleted"}), 404
+        print(query)
+
+        result = execute_command(query)
 
         return jsonify({"status": "deleted"}), 200
 
