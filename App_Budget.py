@@ -2,12 +2,27 @@ from imports import *
 from application import application
 
 
-@application.route('/manage-budget')
-def manage_budget():
+# Budget Management API - Simple GET endpoint only (matches original functionality)
+@application.route('/api/budget', methods=['GET'])
+@jwt_required()
+def api_get_budget():
+    identity = get_jwt_identity()
+    if not (is_admin() or is_executive_approver()):
+        return jsonify({"error": "insufficient permissions"}), 403
+
     try:
-        if is_login() and (is_admin() or is_executive_approver()):
-            content = {'get_all_budget_info': get_all_budget_info_grouped_by_branch()}
-            return render_template('manage_budget.html', result=content)
-    except Exception as e:
-        print('manage budget exception:- ', str(e))
-    return redirect(url_for('login'))
+        # Fetch all budget info grouped by branch - exactly like the original
+        budget_data = get_all_budget_info_grouped_by_branch()
+
+        # Return in the same structure as the original template expected
+        return jsonify({
+            "success": True,
+            "data": budget_data
+        }), 200
+
+    except Exception as exc:
+        print("api_get_budget error:", str(exc))
+        return jsonify({
+            "success": False,
+            "error": "Failed to fetch budget data"
+        }), 500
