@@ -356,6 +356,7 @@ from App_KFT_Distribution import *
 from App_Branch_Role import *
 from App_User_Self_Update_Community import *
 from App_Meeting_Setup import *
+from App_Announcements import *
 
 if __name__ == '__main__':
     application.run(debug=True, port=8080)
