@@ -70,27 +70,177 @@ def loan_metrics_metadata():
 
 
 
-@application.route('/view-rejected-applications')
-def view_rejected_applications():
+@application.route('/api/rejected-applications/filters', methods=['GET'])
+@jwt_required()
+def api_get_rejected_applications_filters():
     try:
-        if is_login():
-            content = {
-                'get_temp_pre_disbursement': view_all_rejected_application(),
-                'is_user_have_sign': is_user_have_sign(),
-                'occupation_list': get_all_occupations(),
-                'experience_ranges_list': get_all_experience_ranges(),
-                'get_all_loan_metrics': get_all_loan_metrics(),
-                'is_reviewer': is_reviewer(),
-                'is_approver': is_approver(),
-                'is_executive_approver': is_executive_approver(),
-                'is_admin': is_admin()
-            }
-            return render_template('view_rejected_applications.html', result=content)
-    except Exception as e:
-        print('view-rejected-applications exception:- ', str(e.__dict__))
-        print('view-rejected-applications exception:- ', str(e))
+        current_user = get_jwt_identity()
 
-    return redirect(url_for('login'))
+        return jsonify({
+            'success': True,
+            'data': {
+                'occupations': get_all_occupations(),
+                'experience_ranges': get_all_experience_ranges(),
+                'loan_metrics': get_all_loan_metrics(),
+                'user_roles': {
+                    'is_reviewer': is_reviewer(),
+                    'is_approver': is_approver(),
+                    'is_executive_approver': is_executive_approver(),
+                    'is_admin': is_admin()
+                }
+            }
+        }), 200
+
+    except Exception as e:
+        print('API get rejected applications filters exception:', str(e))
+        return jsonify({'success': False, 'error': 'Server error'}), 500
+
+
+@application.route('/api/rejected-applications/list', methods=['GET'])
+@jwt_required()
+def api_get_rejected_applications():
+    try:
+        current_user = get_jwt_identity()
+
+        # Get query parameters for filtering
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        sort_by = request.args.get('sort_by', 'rejected_date')
+        sort_order = request.args.get('sort_order', 'desc')
+
+        # Call your existing function
+        applications = view_all_rejected_application()
+
+        # Apply filters
+        if start_date:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+            applications = [app for app in applications
+                            if app.get('rejected_date') and
+                            datetime.strptime(app['rejected_date'].split()[0], '%Y-%m-%d') >= start_date_obj]
+
+        if end_date:
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+            applications = [app for app in applications
+                            if app.get('rejected_date') and
+                            datetime.strptime(app['rejected_date'].split()[0], '%Y-%m-%d') <= end_date_obj]
+
+        # Apply sorting
+        if sort_by == 'ApplicationDate':
+            applications.sort(key=lambda x: x.get('ApplicationDate') or '',
+                              reverse=(sort_order == 'desc'))
+        elif sort_by == 'Loan_Amount':
+            applications.sort(key=lambda x: float(x.get('Loan_Amount') or 0),
+                              reverse=(sort_order == 'desc'))
+        elif sort_by == 'rejected_by':
+            applications.sort(key=lambda x: x.get('rejected_by') or '',
+                              reverse=(sort_order == 'desc'))
+        elif sort_by == 'notes':
+            applications.sort(key=lambda x: x.get('notes') or '',
+                              reverse=(sort_order == 'desc'))
+        else:  # Default sort by rejected_date
+            applications.sort(key=lambda x: x.get('rejected_date') or '',
+                              reverse=(sort_order == 'desc'))
+
+        return jsonify({
+            'success': True,
+            'applications': applications,
+            'total_count': len(applications)
+        }), 200
+
+    except Exception as e:
+        print('API get rejected applications exception:', str(e))
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@application.route('/api/rejected-applications/<int:application_id>', methods=['GET'])
+@jwt_required()
+def api_get_rejected_application_detail(application_id):
+    try:
+        current_user = get_jwt_identity()
+
+        # Get application details
+        applications = view_all_rejected_application()
+        application = next((app for app in applications if app.get('pre_disb_temp_id') == application_id), None)
+
+        if not application:
+            return jsonify({'success': False, 'error': 'Application not found'}), 404
+
+        # Get loan history if CNIC exists
+        loan_history = []
+        if application.get('CNIC'):
+            # Query to fetch on-going loan details
+            query = f"""
+                        SELECT loan_no, cnic, loan_closed_on, mis_date, disbursed_amount, product_code,
+                        booked_on, markup_outstanding, principal_outstanding, loan_closed_on, overdue_days,
+                        loan_status, purpose
+                        FROM tbl_post_disbursement
+                        WHERE CNIC = '{application.get('CNIC')}' ORDER BY mis_date DESC LIMIT 3
+                    """
+            result = fetch_records(query)
+            print(result)
+
+            loan_history = result
+
+        return jsonify({
+            'success': True,
+            'application': application,
+            'loan_history': loan_history
+        }), 200
+
+    except Exception as e:
+        print('API get application detail exception:', str(e))
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@application.route('/api/rejected-applications/export', methods=['GET'])
+@jwt_required()
+def api_export_rejected_applications():
+    try:
+        current_user = get_jwt_identity()
+
+        # Get query parameters
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        # Get filtered applications
+        applications = view_all_rejected_application()
+
+        # Apply date filters
+        if start_date:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+            applications = [app for app in applications
+                            if app.get('rejected_date') and
+                            datetime.strptime(app['rejected_date'].split()[0], '%Y-%m-%d') >= start_date_obj]
+
+        if end_date:
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+            applications = [app for app in applications
+                            if app.get('rejected_date') and
+                            datetime.strptime(app['rejected_date'].split()[0], '%Y-%m-%d') <= end_date_obj]
+
+        # Prepare data for export
+        export_data = []
+        for app in applications:
+            export_data.append({
+                'application_no': app.get('Application_No', ''),
+                'branch': app.get('Branch_Name', ''),
+                'loan_product': app.get('LoanProductCode', ''),
+                'borrower_name': app.get('Borrower_Name', ''),
+                'loan_amount': app.get('Loan_Amount', ''),
+                'reason': app.get('notes', ''),
+                'rejected_by': app.get('rejected_by', ''),
+                'rejected_date': app.get('rejected_date', ''),
+            })
+
+        return jsonify({
+            'success': True,
+            'data': export_data,
+            'total_records': len(export_data)
+        }), 200
+
+    except Exception as e:
+        print('API export rejected applications exception:', str(e))
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 
@@ -651,3 +801,4 @@ def serve_pre_image(image_id):
         traceback.print_exc()
 
         return jsonify({'success': False, 'error': str(e)}), 500
+
