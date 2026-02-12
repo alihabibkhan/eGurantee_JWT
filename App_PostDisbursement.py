@@ -162,151 +162,195 @@ def get_on_going_loan_details():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@application.route('/post_disbursement_report')
-def post_disbursement_report():
+@application.route('/api/post-disbursement/filters', methods=['GET'])
+@jwt_required()
+def api_get_post_disbursement_filters():
     try:
-        if is_login() and (is_admin() or is_executive_approver()):
-            query = "select DISTINCT(product_code) from tbl_loan_products"
-            product_list = fetch_records(query)
+        current_user = get_jwt_identity()
+        # Add role validation if needed
+        if not (is_admin() or is_executive_approver()):
+            return jsonify({'error': 'Unauthorized access'}), 403
 
-            query = "select branch from tbl_branches"
-            branch_list = fetch_records(query)
+        # Fetch filter options
+        product_query = "SELECT DISTINCT(product_code) FROM tbl_loan_products"
+        product_list = fetch_records(product_query)
 
-            query = "select DISTINCT(area) from tbl_branches"
-            area_list = fetch_records(query)
+        branch_query = "SELECT branch FROM tbl_branches"
+        branch_list = fetch_records(branch_query)
 
-            query = "select DISTINCT(loan_status) from tbl_post_disbursement"
-            loan_status_list = fetch_records(query)
+        area_query = "SELECT DISTINCT(area) FROM tbl_branches"
+        area_list = fetch_records(area_query)
 
-            content = {
+        loan_status_query = "SELECT DISTINCT(loan_status) FROM tbl_post_disbursement"
+        loan_status_list = fetch_records(loan_status_query)
+
+        return jsonify({
+            'success': True,
+            'filters': {
                 'product_list': product_list,
                 'branch_list': branch_list,
                 'area_list': area_list,
                 'loan_status_list': loan_status_list,
-                'get_all_bank_distributions': get_all_bank_distributions(),
-                'get_all_national_council_distributions': get_all_national_council_distributions(),
-                'get_all_kft_distributions': get_all_kft_distributions(),
+                'bank_distributions': get_all_bank_distributions(),
+                'national_council_distributions': get_all_national_council_distributions(),
+                'kft_distributions': get_all_kft_distributions(),
             }
-            return render_template('post_disbursement_report.html', result=content)
+        }), 200
+
     except Exception as e:
-        print(e)
-        print('manage post post_disbursement_report exception:- ', str(e.__dict__))
-    return redirect(url_for('login'))
+        print('API get post disbursement filters exception:', str(e))
+        return jsonify({'success': False, 'error': 'Server error'}), 500
 
 
-@application.route('/get_post_disbursement_report_data', methods=['POST'])
-def get_post_disbursement_report_data():
+@application.route('/api/post-disbursement/report', methods=['POST'])
+@jwt_required()
+def api_get_post_disbursement_report():
     try:
-        filters = request.get_json()
-        query = """
-            SELECT 
-                p.id,
-                p.mis_date,
-                p.area,
-                p.branch_code,
-                p.branch_name,
-                p.cnic,
-                p.gender,
-                p.mobile_no,
-                p.loan_no,
-                p.loan_title,
-                p.product_code,
-                p.booked_on,
-                p.disbursed_amount,
-                p.principal_outstanding,
-                p.markup_outstanding,
-                p.repayment_type,
-                p.sector,
-                p.purpose,
-                p.loan_status,
-                p.overdue_days,
-                p.loan_closed_on,
-                p.collateral_title,
-                bdd.bank_distribution_name as bank_distribution,
-                ncd.national_council_distribution_name as national_council_distribution,
-                kd.kft_distribution_name as kft_distribution,
-                b.branch,
-                b.area,
-                b.branch_manager
-            FROM tbl_post_disbursement p
-            LEFT JOIN tbl_branches b ON p.branch_code = b.branch_code
-            LEFT JOIN tbl_bank_details bd ON bd.bank_id = b.bank_id
-            LEFT JOIN tbl_bank_distribution bdd ON bdd.bank_distribution_id = b.bank_distribution
-            LEFT JOIN tbl_national_council_distribution ncd ON ncd.national_council_distribution_id = b.national_council_distribution
-            LEFT JOIN tbl_kft_distribution kd ON kd.kft_distribution_id = b.kft_distribution
-            WHERE 1=1
-        """
+        current_user = get_jwt_identity()
 
-        # Apply filters using f-strings
+        #Add role validation if needed
+        if not (is_admin() or is_executive_approver()):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        filters = request.get_json()
+
+        # Build query with parameterized values to prevent SQL injection
+        query = """
+                SELECT p.id, \
+                       p.mis_date, \
+                       p.area, \
+                       p.branch_code, \
+                       p.branch_name, \
+                       p.cnic, \
+                       p.gender, \
+                       p.mobile_no, \
+                       p.loan_no, \
+                       p.loan_title, \
+                       p.product_code, \
+                       p.booked_on, \
+                       p.disbursed_amount, \
+                       p.principal_outstanding, \
+                       p.markup_outstanding, \
+                       p.repayment_type, \
+                       p.sector, \
+                       p.purpose, \
+                       p.loan_status, \
+                       p.overdue_days, \
+                       p.loan_closed_on, \
+                       p.collateral_title, \
+                       bdd.bank_distribution_name             as bank_distribution, \
+                       ncd.national_council_distribution_name as national_council_distribution, \
+                       kd.kft_distribution_name               as kft_distribution, \
+                       b.branch, \
+                       b.area, \
+                       b.branch_manager
+                FROM tbl_post_disbursement p
+                         LEFT JOIN tbl_branches b ON p.branch_code = b.branch_code
+                         LEFT JOIN tbl_bank_details bd ON bd.bank_id = b.bank_id
+                         LEFT JOIN tbl_bank_distribution bdd ON bdd.bank_distribution_id = b.bank_distribution
+                         LEFT JOIN tbl_national_council_distribution ncd \
+                                   ON ncd.national_council_distribution_id = b.national_council_distribution
+                         LEFT JOIN tbl_kft_distribution kd ON kd.kft_distribution_id = b.kft_distribution
+                WHERE 1 = 1 \
+                """
+
+        params = []
+
+        # Apply filters using parameterized queries
         if filters.get('mis_date'):
-            query += f" AND DATE(p.mis_date) = '{filters['mis_date']}'"
+            query += " AND DATE(p.mis_date) = %s"
+            params.append(filters['mis_date'])
 
         if filters.get('product_code'):
-            product_codes = "', '".join(filters['product_code'])
-            query += f" AND p.product_code IN ('{product_codes}')"
+            placeholders = ', '.join(['%s'] * len(filters['product_code']))
+            query += f" AND p.product_code IN ({placeholders})"
+            params.extend(filters['product_code'])
 
         if filters.get('gender'):
-            query += f" AND p.gender = '{filters['gender']}'"
+            query += " AND p.gender = %s"
+            params.append(filters['gender'])
 
         if filters.get('disbursed_amount_min'):
-            query += f" AND p.disbursed_amount >= {float(filters['disbursed_amount_min'])}"
+            query += " AND p.disbursed_amount >= %s"
+            params.append(float(filters['disbursed_amount_min']))
 
         if filters.get('disbursed_amount_max'):
-            query += f" AND p.disbursed_amount <= {float(filters['disbursed_amount_max'])}"
+            query += " AND p.disbursed_amount <= %s"
+            params.append(float(filters['disbursed_amount_max']))
 
         if filters.get('principal_outstanding_min'):
-            query += f" AND p.principal_outstanding >= {float(filters['principal_outstanding_min'])}"
+            query += " AND p.principal_outstanding >= %s"
+            params.append(float(filters['principal_outstanding_min']))
 
         if filters.get('principal_outstanding_max'):
-            query += f" AND p.principal_outstanding <= {float(filters['principal_outstanding_max'])}"
+            query += " AND p.principal_outstanding <= %s"
+            params.append(float(filters['principal_outstanding_max']))
 
         if filters.get('loan_status'):
-            loan_statuses = "', '".join(filters['loan_status'])
-            query += f" AND p.loan_status IN ('{loan_statuses}')"
+            placeholders = ', '.join(['%s'] * len(filters['loan_status']))
+            query += f" AND p.loan_status IN ({placeholders})"
+            params.extend(filters['loan_status'])
 
         if filters.get('branch'):
-            branches = "', '".join(filters['branch'])
-            query += f" AND b.branch IN ('{branches}')"
+            placeholders = ', '.join(['%s'] * len(filters['branch']))
+            query += f" AND b.branch IN ({placeholders})"
+            params.extend(filters['branch'])
 
         if filters.get('bank_area'):
-            bank_areas = "', '".join(filters['bank_area'])
-            query += f" AND b.area IN ('{bank_areas}')"
+            placeholders = ', '.join(['%s'] * len(filters['bank_area']))
+            query += f" AND b.area IN ({placeholders})"
+            params.extend(filters['bank_area'])
 
         if filters.get('bank_distribution'):
-            bank_distributions = "', '".join(filters['bank_distribution'])
-            query += f" AND b.bank_distribution IN ('{bank_distributions}')"
+            placeholders = ', '.join(['%s'] * len(filters['bank_distribution']))
+            query += f" AND b.bank_distribution IN ({placeholders})"
+            params.extend(filters['bank_distribution'])
 
         if filters.get('nc_distribution'):
-            nc_distributions = "', '".join(filters['nc_distribution'])
-            query += f" AND b.national_council_distribution IN ('{nc_distributions}')"
+            placeholders = ', '.join(['%s'] * len(filters['nc_distribution']))
+            query += f" AND b.national_council_distribution IN ({placeholders})"
+            params.extend(filters['nc_distribution'])
 
         if filters.get('kft_distribution'):
-            kft_distributions = "', '".join(filters['kft_distribution'])
-            query += f" AND b.kft_distribution IN ('{kft_distributions}')"
+            placeholders = ', '.join(['%s'] * len(filters['kft_distribution']))
+            query += f" AND b.kft_distribution IN ({placeholders})"
+            params.extend(filters['kft_distribution'])
 
         # Sorting
-        sort_field = {
-            'asc': 'ASC',
-            'desc': 'DESC'
+        sort_field_mapping = {
+            'booked_on': 'p.booked_on',
+            'loan_closed_on': 'p.loan_closed_on',
+            'repayment_type': 'p.repayment_type',
+            'sector': 'p.sector',
+            'purpose': 'p.purpose'
         }
-        if filters.get('booked_on'):
-            query += f" ORDER BY p.booked_on {sort_field.get(filters['booked_on'], 'ASC')}"
-        elif filters.get('loan_closed_on'):
-            query += f" ORDER BY p.loan_closed_on {sort_field.get(filters['loan_closed_on'], 'ASC')}"
-        elif filters.get('repayment_type'):
-            query += f" ORDER BY p.repayment_type {sort_field.get(filters['repayment_type'], 'ASC')}"
-        elif filters.get('sector'):
-            query += f" ORDER BY p.sector {sort_field.get(filters['sector'], 'ASC')}"
-        elif filters.get('purpose'):
-            query += f" ORDER BY p.purpose {sort_field.get(filters['purpose'], 'ASC')}"
 
-        print(query)
+        sort_field = None
+        sort_order = 'ASC'
 
-        rows = fetch_records(query)
+        for field in ['booked_on', 'loan_closed_on', 'repayment_type', 'sector', 'purpose']:
+            if filters.get(field):
+                sort_field = sort_field_mapping[field]
+                sort_order = filters[field].upper()
+                break
 
-        return jsonify({'success': True, 'records': rows})
+        if sort_field:
+            query += f" ORDER BY {sort_field} {sort_order}"
+        else:
+            query += " ORDER BY p.mis_date DESC"
+
+        print("Generated Query:", query)
+        print("Parameters:", params)
+
+        # Use parameterized query execution
+        rows = fetch_records(query, tuple(params))
+
+        return jsonify({'success': True, 'records': rows}), 200
+
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        print('API get post disbursement report exception:', str(e))
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 
 
