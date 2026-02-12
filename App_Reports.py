@@ -277,180 +277,154 @@ def api_get_fund_projection_report_data():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@application.route('/fund_projected_vs_disbursement')
-def fund_projected_vs_disbursement():
+@application.route('/api/fund_projected_vs_disbursement', methods=['GET'])
+def api_fund_projected_vs_disbursement():
+    if not (is_login() and (is_admin() or is_executive_approver())):
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
     try:
-        if is_login() and (is_admin() or is_executive_approver()):
+        from_month = request.args.get('from')  # YYYY-MM
+        to_month   = request.args.get('to')    # YYYY-MM
 
-            # query = """
-            #     WITH LatestMonth AS (
-            #         SELECT
-            #             report_date,
-            #             total_projected_disbursement,
-            #             projected_recoveries,
-            #             ROW_NUMBER() OVER (PARTITION BY TO_CHAR(report_date, 'Mon-YYYY')
-            #                               ORDER BY created_at DESC) AS rn
-            #         FROM tbl_fund_projection_reports
-            #         WHERE TO_CHAR(report_date, 'YYYY-MM') = (
-            #             SELECT TO_CHAR(MAX(report_date), 'YYYY-MM')
-            #             FROM tbl_fund_projection_reports
-            #         )
-            #     ),
-            #     Disbursement AS (
-            #         SELECT
-            #             SUM(disbursed_amount) AS disbursement
-            #         FROM tbl_post_disbursement
-            #         WHERE DATE_TRUNC('month', mis_date) = (
-            #             SELECT DATE_TRUNC('month', MAX(mis_date))
-            #             FROM tbl_post_disbursement
-            #         )
-            #     )
-            #     SELECT
-            #         TO_CHAR(lm.report_date, 'Mon-YYYY') AS month_year,
-            #         lm.total_projected_disbursement,
-            #         lm.projected_recoveries,
-            #         d.disbursement
-            #     FROM LatestMonth lm
-            #     CROSS JOIN Disbursement d
-            #     WHERE lm.rn = 1;
-            # """
-
-
-            # query = """
-            #     WITH LatestMonth AS (
-            #         SELECT
-            #             report_date,
-            #             total_projected_disbursement,
-            #             projected_recoveries,
-            #             ROW_NUMBER() OVER (PARTITION BY TO_CHAR(report_date, 'YYYY-MM')
-            #                               ORDER BY created_at DESC) AS rn
-            #         FROM tbl_fund_projection_reports
-            #     ),
-            #     Disbursement AS (
-            #         SELECT
-            #             SUM(disbursed_amount) AS disbursement
-            #         FROM tbl_post_disbursement
-            #         WHERE DATE_TRUNC('month', mis_date) = (
-            #             SELECT DATE_TRUNC('month', MAX(mis_date))
-            #             FROM tbl_post_disbursement
-            #         )
-            #     )
-            #     SELECT
-            #         TO_CHAR(lm.report_date, 'Mon-YYYY') AS month_year,
-            #         lm.total_projected_disbursement,
-            #         lm.projected_recoveries,
-            #         d.disbursement
-            #     FROM LatestMonth lm
-            #     CROSS JOIN Disbursement d
-            #     WHERE lm.rn = 1
-            #     ORDER BY lm.report_date;
-            # """
-
-            query = """
-                WITH LatestMonth AS (
-                    SELECT 
-                        report_date,
-                        total_projected_disbursement,
-                        projected_recoveries,
-                        ROW_NUMBER() OVER (PARTITION BY TO_CHAR(report_date, 'YYYY-MM') 
-                                          ORDER BY created_at DESC) AS rn
-                    FROM tbl_fund_projection_reports
-                ),
-                Disbursement AS (
-                    SELECT 
-                        SUM(disbursed_amount) AS disbursement,
-                        DATE_TRUNC('month', booked_on) AS booked_month
-                    FROM tbl_post_disbursement
-                    GROUP BY DATE_TRUNC('month', booked_on)
-                )
+        query = """
+            WITH LatestMonth AS (
                 SELECT 
-                    TO_CHAR(lm.report_date, 'Mon-YYYY') AS month_year,
-                    lm.total_projected_disbursement,
-                    lm.projected_recoveries,
-                    d.disbursement
-                FROM LatestMonth lm
-                LEFT JOIN Disbursement d
-                    ON DATE_TRUNC('month', lm.report_date) = d.booked_month
-                WHERE lm.rn = 1
-                ORDER BY lm.report_date;
-            """
+                    report_date,
+                    total_projected_disbursement,
+                    projected_recoveries,
+                    ROW_NUMBER() OVER (PARTITION BY TO_CHAR(report_date, 'YYYY-MM') 
+                                      ORDER BY created_at DESC) AS rn
+                FROM tbl_fund_projection_reports
+            ),
+            Disbursement AS (
+                SELECT 
+                    SUM(disbursed_amount) AS disbursement,
+                    DATE_TRUNC('month', booked_on) AS booked_month
+                FROM tbl_post_disbursement
+                GROUP BY DATE_TRUNC('month', booked_on)
+            )
+            SELECT 
+                TO_CHAR(lm.report_date, 'Mon-YYYY') AS month_year,
+                lm.total_projected_disbursement,
+                lm.projected_recoveries,
+                COALESCE(d.disbursement, 0) AS disbursement
+            FROM LatestMonth lm
+            LEFT JOIN Disbursement d
+                ON DATE_TRUNC('month', lm.report_date) = d.booked_month
+            WHERE lm.rn = 1
+        """
 
-            result = fetch_records(query)
+        params = []
+        conditions = []
 
-            content = {
-                'fund_projection_data': result,
-            }
-            return render_template('fund_projected_vs_disbursement.html', result=content)
+        if from_month:
+            try:
+                from_dt = datetime.strptime(from_month, '%Y-%m')
+                conditions.append("lm.report_date >= %s")
+                params.append(from_dt)
+            except ValueError:
+                pass
+
+        if to_month:
+            try:
+                to_dt = datetime.strptime(to_month, '%Y-%m')
+                # Include full month
+                to_dt += relativedelta(months=1) - relativedelta(days=1)
+                conditions.append("lm.report_date <= %s")
+                params.append(to_dt)
+            except ValueError:
+                pass
+
+        if conditions:
+            query += " AND " + " AND ".join(conditions)
+
+        query += " ORDER BY lm.report_date ASC;"
+
+        result = fetch_records(query, tuple(params) if params else None)
+
+        return jsonify({
+            'success': True,
+            'fund_projection_data': result
+        })
+
     except Exception as e:
-        print('fund projected vs disbursement exception:- ', str(e))
-    return redirect(url_for('login'))
+        print('API fund_projected_vs_disbursement error:', str(e))
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
-# --------------------------------------------------------------
-# 1. Render the page (same as before)
-# --------------------------------------------------------------
-@application.route('/loan_projection_report')
-def loan_projection_report():
+@application.route('/api/loan-projection/filters', methods=['GET'])
+@jwt_required()
+def api_get_loan_projection_filters():
     try:
-        if not (is_login() and (is_admin() or is_executive_approver())):
-            return redirect(url_for('login'))
+        current_user = get_jwt_identity()
+        # Add role validation if needed
+        # if not (is_admin(current_user) or is_executive_approver(current_user)):
+        #     return jsonify({'error': 'Unauthorized access'}), 403
 
-        # Product list
+        # Fetch product list
         prod_sql = "SELECT DISTINCT product_code FROM tbl_post_disbursement ORDER BY product_code"
         product_list = fetch_records(prod_sql)
 
-        return render_template(
-            'loan_projection_report.html',
-            result={'product_list': product_list}
-        )
+        return jsonify({
+            'success': True,
+            'products': product_list
+        }), 200
+
     except Exception as e:
-        print('loan_projection_report error:', e)
-        return redirect(url_for('login'))
+        print('API get loan projection filters exception:', str(e))
+        return jsonify({'success': False, 'error': 'Server error'}), 500
 
 
-@application.route('/get_loan_projection_report_data', methods=['POST'])
-def get_loan_projection_report_data():
+@application.route('/api/loan-projection/report', methods=['POST'])
+@jwt_required()
+def api_get_loan_projection_report():
     try:
+        current_user = get_jwt_identity()
+
         filters = request.get_json() or {}
 
-        # ------------------------------------------------------------------
-        # Base CTE – PostgreSQL (with fixes)
-        # ------------------------------------------------------------------
+        # Build query with parameterized values
         query = """
-            WITH monthly_data AS (
-                SELECT
-                    TO_CHAR(booked_on, 'Mon-YYYY') AS "Month",
-                    SUM(disbursed_amount) AS "Actual Disbursement",
-                    COUNT(DISTINCT cnic)::INTEGER AS "Actual No of Beneficiaries",
-                    MIN(booked_on) AS month_start
-                FROM tbl_post_disbursement
-                WHERE 1=1
-        """
+                WITH monthly_data AS (SELECT TO_CHAR(booked_on, 'Mon-YYYY') AS "Month", \
+                                             SUM(disbursed_amount)          AS "Actual Disbursement", \
+                                             COUNT(DISTINCT cnic)::INTEGER AS "Actual No of Beneficiaries", MIN(booked_on) AS month_start \
+                                      FROM tbl_post_disbursement \
+                                      WHERE 1 = 1 \
+                """
 
-        # ------------------ FILTER: Product ------------------
+        params = []
+
+        # Filter: Product codes
         product_codes = [code for code in filters.get('product_code', []) if code]
         if product_codes:
-            safe_codes = "', '".join(code.replace("'", "''") for code in product_codes)
-            query += f" AND product_code IN ('{safe_codes}')"
+            placeholders = ', '.join(['%s'] * len(product_codes))
+            query += f" AND product_code IN ({placeholders})"
+            params.extend(product_codes)
 
-        # ------------------ FILTER: Historical Growth ------------------
+        # Filter: Historical Growth
         growth = filters.get('historical_growth')
         if growth and growth != 'all':
             months_map = {
-                'last_3_months': 3, 'last_6_months': 6,
-                'last_9_months': 9, 'last_12_months': 12
+                'last_3_months': 3,
+                'last_6_months': 6,
+                'last_9_months': 9,
+                'last_12_months': 12
             }
-            months = months_map[growth]
-            query += f" AND booked_on >= CURRENT_DATE - INTERVAL '{months} months'"
+            months = months_map.get(growth, 3)
+            query += " AND booked_on >= CURRENT_DATE - INTERVAL %s"
+            params.append(f'{months} months')
 
-        # ------------------ FILTER: Projection For ------------------
+        # Filter: Projection For
         proj = filters.get('projection_for')
         if proj == 'current_month':
             query += " AND DATE_TRUNC('month', booked_on) = DATE_TRUNC('month', CURRENT_DATE)"
         elif proj == 'current_year':
             query += " AND DATE_PART('year', booked_on) = DATE_PART('year', CURRENT_DATE)"
 
-        # ------------------ Complete monthly_data ------------------
+        # Complete CTE
         query += """
                 GROUP BY TO_CHAR(booked_on, 'Mon-YYYY'), DATE_TRUNC('month', booked_on)
             ),
@@ -481,15 +455,186 @@ def get_loan_projection_report_data():
                      THEN ROUND((("Actual No of Beneficiaries" - prev_beneficiaries) * 100.0 / prev_beneficiaries), 2)
                      ELSE NULL END AS growth_beneficiaries_percentage
             FROM ranked_data
-            ORDER BY month_start;  -- Chronological order
+            ORDER BY month_start
         """
 
-        print("Final Query:\n", query)
-        rows = fetch_records(query)
+        print("Generated Query:", query)
+        print("Parameters:", params)
 
-        return jsonify({'success': True, 'records': rows})
+        # Execute query
+        rows = fetch_records(query, tuple(params) if params else None)
+
+        return jsonify({'success': True, 'records': rows}), 200
 
     except Exception as e:
-        print("Error:", str(e))
+        print('API get loan projection report exception:', str(e))
+        return jsonify({'success': False, 'error': str(e)}), 500
 
-        return jsonify({'success': False, 'error': str(e)})
+
+@application.route('/api/loan-projection/averages', methods=['POST'])
+@jwt_required()
+def api_get_loan_projection_averages():
+    try:
+        current_user = get_jwt_identity()
+
+        data = request.get_json()
+        records = data.get('records', [])
+        period = data.get('period', 'last_3_months')
+
+        if not records:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+        months_map = {
+            'last_3_months': 3,
+            'last_6_months': 6,
+            'last_9_months': 9,
+            'last_12_months': 12
+        }
+
+        n = months_map.get(period, 3)
+        recent_data = records[-n:] if len(records) >= n else records
+
+        if not recent_data:
+            return jsonify({'success': False, 'error': f'No data for last {n} months'}), 400
+
+        # Calculate averages
+        totals = {
+            'disbursement': 0.0,
+            'beneficiaries': 0.0,
+            'growth_disb_amt': 0.0,
+            'growth_disb_pct': 0.0,
+            'growth_benef_cnt': 0.0,
+            'growth_benef_pct': 0.0,
+            'valid_growth_disb_pct': 0,
+            'valid_growth_benef_pct': 0
+        }
+
+        for record in recent_data:
+            totals['disbursement'] += float(record.get('Actual Disbursement', 0) or 0)
+            totals['beneficiaries'] += float(record.get('Actual No of Beneficiaries', 0) or 0)
+            totals['growth_disb_amt'] += float(record.get('growth_disbursement_amount', 0) or 0)
+            totals['growth_benef_cnt'] += float(record.get('growth_beneficiaries_count', 0) or 0)
+
+            growth_disb_pct = record.get('growth_disbursement_percentage')
+            if growth_disb_pct is not None:
+                totals['growth_disb_pct'] += float(growth_disb_pct)
+                totals['valid_growth_disb_pct'] += 1
+
+            growth_benef_pct = record.get('growth_beneficiaries_percentage')
+            if growth_benef_pct is not None:
+                totals['growth_benef_pct'] += float(growth_benef_pct)
+                totals['valid_growth_benef_pct'] += 1
+
+        averages = {
+            'period': period,
+            'months_count': n,
+            'data_months': [record.get('Month') for record in recent_data if record.get('Month')],
+            'average_disbursement': totals['disbursement'] / len(recent_data),
+            'average_beneficiaries': totals['beneficiaries'] / len(recent_data),
+            'average_growth_disb_amt': totals['growth_disb_amt'] / len(recent_data),
+            'average_growth_disb_pct': totals['growth_disb_pct'] / totals['valid_growth_disb_pct'] if totals[
+                                                                                                          'valid_growth_disb_pct'] > 0 else 0,
+            'average_growth_benef_cnt': totals['growth_benef_cnt'] / len(recent_data),
+            'average_growth_benef_pct': totals['growth_benef_pct'] / totals['valid_growth_benef_pct'] if totals[
+                                                                                                             'valid_growth_benef_pct'] > 0 else 0
+        }
+
+        return jsonify({'success': True, 'averages': averages}), 200
+
+    except Exception as e:
+        print('API get loan projection averages exception:', str(e))
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@application.route('/api/loan-projection/projections', methods=['POST'])
+@jwt_required()
+def api_get_loan_projection_projections():
+    try:
+        current_user = get_jwt_identity()
+
+        data = request.get_json()
+        records = data.get('records', [])
+        period = data.get('period', 'last_3_months')
+        projection_type = data.get('projection_type', 'next_month')
+
+        if not records:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+        # First get averages
+        months_map = {
+            'last_3_months': 3,
+            'last_6_months': 6,
+            'last_9_months': 9,
+            'last_12_months': 12
+        }
+
+        n = months_map.get(period, 3)
+        recent_data = records[-n:] if len(records) >= n else records
+
+        if not recent_data:
+            return jsonify({'success': False, 'error': f'No data for last {n} months'}), 400
+
+        # Calculate averages
+        totals = {
+            'disbursement': 0.0,
+            'beneficiaries': 0.0,
+            'growth_disb_pct': 0.0,
+            'growth_benef_pct': 0.0,
+            'valid_growth_disb_pct': 0,
+            'valid_growth_benef_pct': 0
+        }
+
+        for record in recent_data:
+            totals['disbursement'] += float(record.get('Actual Disbursement', 0) or 0)
+            totals['beneficiaries'] += float(record.get('Actual No of Beneficiaries', 0) or 0)
+
+            growth_disb_pct = record.get('growth_disbursement_percentage')
+            if growth_disb_pct is not None:
+                totals['growth_disb_pct'] += float(growth_disb_pct)
+                totals['valid_growth_disb_pct'] += 1
+
+            growth_benef_pct = record.get('growth_beneficiaries_percentage')
+            if growth_benef_pct is not None:
+                totals['growth_benef_pct'] += float(growth_benef_pct)
+                totals['valid_growth_benef_pct'] += 1
+
+        avg_disbursement = totals['disbursement'] / len(recent_data)
+        avg_beneficiaries = totals['beneficiaries'] / len(recent_data)
+        avg_growth_disb_pct = totals['growth_disb_pct'] / totals['valid_growth_disb_pct'] if totals[
+                                                                                                 'valid_growth_disb_pct'] > 0 else 0
+        avg_growth_benef_pct = totals['growth_benef_pct'] / totals['valid_growth_benef_pct'] if totals[
+                                                                                                    'valid_growth_benef_pct'] > 0 else 0
+
+        # Calculate projections
+        projections = {
+            'period': period,
+            'projection_type': projection_type,
+            'data_months': [record.get('Month') for record in recent_data if record.get('Month')],
+            'average_disbursement': avg_disbursement,
+            'average_beneficiaries': avg_beneficiaries,
+            'average_growth_disb_pct': avg_growth_disb_pct,
+            'average_growth_benef_pct': avg_growth_benef_pct
+        }
+
+        # Projection calculations
+        if projection_type == 'next_month':
+            projections['projected_disbursement'] = avg_disbursement * (1 + avg_growth_disb_pct / 100)
+            projections['projected_beneficiaries'] = avg_beneficiaries * (1 + avg_growth_benef_pct / 100)
+            projections['projection_period'] = 'Next Month'
+
+        elif projection_type == 'current_month':
+            projections['projected_disbursement'] = avg_disbursement
+            projections['projected_beneficiaries'] = avg_beneficiaries
+            projections['projection_period'] = 'Current Month'
+
+        elif projection_type == 'current_year':
+            projections['projected_disbursement'] = avg_disbursement * 12 * (1 + avg_growth_disb_pct / 100)
+            projections['projected_beneficiaries'] = avg_beneficiaries * 12 * (1 + avg_growth_benef_pct / 100)
+            projections['projection_period'] = 'Current Year'
+
+        return jsonify({'success': True, 'projections': projections}), 200
+
+    except Exception as e:
+        print('API get loan projection projections exception:', str(e))
+        return jsonify({'success': False, 'error': str(e)}), 500
+
