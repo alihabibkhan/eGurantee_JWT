@@ -2,174 +2,279 @@ from imports import *
 from application import application
 
 
-@application.route('/fund-projection-report')
-def fund_projection_report():
+@application.route('/api/fund-projection/filters', methods=['GET'])
+@jwt_required()
+def api_get_fund_projection_filters():
+    print("→ ENTER api_get_fund_projection_filters")
     try:
-        if is_login() and (is_admin() or is_executive_approver()):
-            content = {
-                'get_all_bank_details': get_all_bank_details(),
-                'get_all_banks_last_entry_records': get_all_banks_last_entry_records(),
-                'get_outstanding_loans': get_outstanding_loans(),
-                'post_disbursement_by_booked_on': post_disbursement_by_booked_on()
+        current_user = get_jwt_identity()
+        print(f"  current_user from JWT: {current_user}")
+
+        if not (is_admin() or is_executive_approver()):
+            print("  → Unauthorized - not admin or executive approver")
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        print("  → User authorized → fetching data")
+
+        banks = get_all_bank_details()
+        print(f"  get_all_bank_details() returned {len(banks) if isinstance(banks, (list, tuple)) else 'non-list'} items")
+        print('banks records:- ')
+        print(banks)
+
+        last_entries = get_all_banks_last_entry_records()
+        print(f"  get_all_banks_last_entry_records() returned {len(last_entries) if isinstance(last_entries, (list, tuple)) else 'non-list'} items")
+        print('banks last entries:- ')
+        print(last_entries)
+
+        outstanding_loans = get_outstanding_loans()
+        print(f"  get_outstanding_loans() returned {len(outstanding_loans) if isinstance(outstanding_loans, (list, tuple)) else 'non-list'} items")
+
+        post_disb = post_disbursement_by_booked_on()
+        print(f"  post_disbursement_by_booked_on() returned {len(post_disb) if isinstance(post_disb, (list, tuple)) else 'non-list'} items")
+
+        print("  → Preparing response payload")
+        response_data = {
+            'success': True,
+            'data': {
+                'banks': banks,
+                'last_entry_records': last_entries,
+                'outstanding_loans': outstanding_loans,
+                'post_disbursement_by_booked_on': post_disb
             }
-            return render_template('fund_projection_report.html', result=content)
+        }
+        print("  → Returning 200 OK")
+        return jsonify(response_data), 200
+
     except Exception as e:
-        print('fund projection report exception:- ', str(e))
-    return redirect(url_for('login'))
+        print('!!! EXCEPTION in api_get_fund_projection_filters:', str(e))
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': 'Server error'}), 500
 
 
-@application.route('/save_fund_projection', methods=['POST'])
-def save_fund_projection():
+@application.route('/api/fund-projection/save', methods=['POST'])
+@jwt_required()
+def api_save_fund_projection():
+    print("→ ENTER api_save_fund_projection")
     try:
+        current_user = get_jwt_identity()
+        print(f"  current_user: {current_user}")
+
+        if not (is_admin() or is_executive_approver()):
+            print("  → Unauthorized access attempt")
+            return jsonify({'error': 'Unauthorized access'}), 403
+
         data = request.get_json()
+        print(f"  request.get_json() keys: {list(data.keys()) if data else 'None or empty body'}")
 
-        # Extract data from JSON
         bank_id = data.get('bank_id')
-        account_balance = data.get('account_balance', 'NULL').replace(',', '') or 'NULL'
-        actual_data_date = data.get('actual_data_date', 'NULL') or 'NULL'
-        report_date = data.get('report_date', 'NULL') or 'NULL'
-        actual_portfolio = data.get('actual_portfolio', 'NULL').replace(',', '') or 'NULL'
-        ten_percent_lien = data.get('ten_percent_lien', 'NULL').replace(',', '') or 'NULL'
-        total_lien_amount = data.get('total_lien_amount', 'NULL').replace(',', '') or 'NULL'
-        actual_collateral_balance = data.get('actual_collateral_balance', 'NULL').replace(',', '') or 'NULL'
-        surplus_shortfall = data.get('surplus_shortfall', 'NULL').replace(',', '') or 'NULL'
-        projected_disbursement = data.get('projected_disbursement', 'NULL') or 'NULL'
-        seasonal_affects = data.get('seasonal_affects', 'NULL') or 'NULL'
-        new_product_affects = data.get('new_product_affects', 'NULL') or 'NULL'
-        total_projected_disbursement = data.get('total_projected_disbursement', 'NULL').replace(',', '') or 'NULL'
-        projected_recoveries = data.get('projected_recoveries', 'NULL').replace(',', '') or 'NULL'
-        projected_monthly_change = data.get('projected_monthly_change', 'NULL').replace(',', '') or 'NULL'
-        actual_portfolio_opening = data.get('actual_portfolio_opening', 'NULL').replace(',', '') or 'NULL'
-        add_projected_monthly_change = data.get('add_projected_monthly_change', 'NULL').replace(',', '') or 'NULL'
-        projected_portfolio_closing = data.get('projected_portfolio_closing', 'NULL').replace(',', '') or 'NULL'
-        cushion_ten_percent = data.get('cushion_ten_percent', 'NULL').replace(',', '') or 'NULL'
-        projected_collateral_balance = data.get('projected_collateral_balance', 'NULL').replace(',', '') or 'NULL'
-        actual_collateral_balance_req = data.get('actual_collateral_balance_req', 'NULL').replace(',', '') or 'NULL'
-        surplus_shortfall_req = data.get('surplus_shortfall_req', 'NULL').replace(',', '') or 'NULL'
+        print(f"  bank_id extracted: {bank_id}")
+        if not bank_id:
+            print("  → Missing bank_id → returning 400")
+            return jsonify({'success': False, 'error': 'Bank ID is required'}), 400
 
-        # Construct SQL query using f-string
-        query = f"""
+        def parse_number(value, default='NULL'):
+            orig = value
+            if value is None or value == '':
+                print(f"    parse_number({orig!r}) → empty/None → {default}")
+                return default
+            try:
+                cleaned = str(value).replace(',', '').strip()
+                print(f"    parse_number({orig!r}) → cleaned → {cleaned!r}")
+                if cleaned == '':
+                    return default
+                # You can add float(cleaned) here if you want early validation
+                return cleaned
+            except Exception as ex:
+                print(f"    parse_number failed on {orig!r}: {ex} → returning {default}")
+                return default
+
+        # ────────────────────────────────────────
+        # Parse all fields with debug output
+        # ────────────────────────────────────────
+        account_balance              = parse_number(data.get('account_balance'))
+        actual_data_date             = data.get('actual_data_date', 'NULL') or 'NULL'
+        report_date                  = data.get('report_date', 'NULL') or 'NULL'
+        actual_portfolio             = parse_number(data.get('actual_portfolio'))
+        ten_percent_lien             = parse_number(data.get('ten_percent_lien'))
+        total_lien_amount            = parse_number(data.get('total_lien_amount'))
+        actual_collateral_balance    = parse_number(data.get('actual_collateral_balance'))
+        surplus_shortfall            = parse_number(data.get('surplus_shortfall'))
+        projected_disbursement       = parse_number(data.get('projected_disbursement'))
+        seasonal_affects             = parse_number(data.get('seasonal_affects'))
+        new_product_affects          = parse_number(data.get('new_product_affects'))
+        total_projected_disbursement = parse_number(data.get('total_projected_disbursement'))
+        projected_recoveries         = parse_number(data.get('projected_recoveries'))
+        projected_monthly_change     = parse_number(data.get('projected_monthly_change'))
+        actual_portfolio_opening     = parse_number(data.get('actual_portfolio_opening'))
+        add_projected_monthly_change = parse_number(data.get('add_projected_monthly_change'))
+        projected_portfolio_closing  = parse_number(data.get('projected_portfolio_closing'))
+        cushion_ten_percent          = parse_number(data.get('cushion_ten_percent'))
+        projected_collateral_balance = parse_number(data.get('projected_collateral_balance'))
+        actual_collateral_balance_req = parse_number(data.get('actual_collateral_balance_req'))
+        surplus_shortfall_req        = parse_number(data.get('surplus_shortfall_req'))
+
+        print("  All fields parsed successfully")
+
+        created_by = get_current_user_id()
+        print(f"  created_by = {created_by}")
+
+        # ────────────────────────────────────────
+        # SQL Query (was missing in previous snippet)
+        # ────────────────────────────────────────
+        query = """
         INSERT INTO tbl_fund_projection_reports (
+            bank_id, account_balance, actual_data_date, report_date,
+            actual_portfolio, ten_percent_lien, total_lien_amount, actual_collateral_balance,
+            surplus_shortfall, projected_disbursement, seasonal_affects, new_product_affects,
+            total_projected_disbursement, projected_recoveries, projected_monthly_change,
+            actual_portfolio_opening, add_projected_monthly_change, projected_portfolio_closing,
+            cushion_ten_percent, projected_collateral_balance,
+            actual_collateral_balance_req, surplus_shortfall_req,
+            created_by, created_at
+        ) VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+            %s, %s, %s, NOW()
+        )
+        """
+
+        params = (
             bank_id, account_balance, actual_data_date, report_date, actual_portfolio,
             ten_percent_lien, total_lien_amount, actual_collateral_balance, surplus_shortfall,
             projected_disbursement, seasonal_affects, new_product_affects,
             total_projected_disbursement, projected_recoveries, projected_monthly_change,
             actual_portfolio_opening, add_projected_monthly_change, projected_portfolio_closing,
-            cushion_ten_percent, projected_collateral_balance, actual_collateral_balance_req,
-            surplus_shortfall_req
-        ) VALUES (
-            {bank_id}, {account_balance}, '{actual_data_date}', '{report_date}', {actual_portfolio},
-            {ten_percent_lien}, {total_lien_amount}, {actual_collateral_balance}, {surplus_shortfall},
-            {projected_disbursement}, {seasonal_affects}, {new_product_affects},
-            {total_projected_disbursement}, {projected_recoveries}, {projected_monthly_change},
-            {actual_portfolio_opening}, {add_projected_monthly_change}, {projected_portfolio_closing},
-            {cushion_ten_percent}, {projected_collateral_balance}, {actual_collateral_balance_req},
-            {surplus_shortfall_req}
+            cushion_ten_percent, projected_collateral_balance,
+            actual_collateral_balance_req, surplus_shortfall_req,
+            created_by
         )
-        """
 
-        # Execute the query using execute_command
-        execute_command(query)
+        print(f"  → About to execute INSERT with {len(params)} parameters")
+        # Optional: print("  SQL params:", params)   # ← uncomment only if values are small/safe
 
-        return jsonify({'status': 'success', 'message': 'Fund projection report saved successfully'}), 200
+        execute_command(query, params)
+        print("  → INSERT executed → success")
+
+        return jsonify({
+            'success': True,
+            'message': 'Fund projection report saved successfully'
+        }), 201
 
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        print('!!! EXCEPTION in api_save_fund_projection:', str(e))
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
-# New route to fetch available report dates
-@application.route('/get_report_dates', methods=['GET'])
-def get_report_dates():
+@application.route('/api/fund-projection/report-dates', methods=['GET'])
+@jwt_required()
+def api_get_fund_projection_report_dates():
+    print("→ ENTER api_get_fund_projection_report_dates")
     try:
         bank_id = request.args.get('bank_id')
-        print('bank_id:- ', bank_id)
+        print(f"  Query param bank_id = {bank_id}")
+
         if not bank_id:
-            return jsonify({'status': 'error', 'message': 'Bank ID is required'}), 400
+            print("  → Missing bank_id → 400")
+            return jsonify({'success': False, 'error': 'Bank ID is required'}), 400
 
-        query = f"""
-        SELECT DISTINCT created_at
-        FROM tbl_fund_projection_reports
-        WHERE bank_id = {bank_id}
-        ORDER BY created_at DESC
+        query = """
+            SELECT DISTINCT DATE(created_at) as report_date
+            FROM tbl_fund_projection_reports
+            WHERE bank_id = %s
+            ORDER BY report_date DESC
         """
 
-        # Assuming execute_command returns a list of records
-        result = fetch_records(query)
-        print(result)
-        dates = [row['created_at'] for row in result] if result else []
+        result = fetch_records(query, (bank_id,))
+        print(f"  fetch_records returned {len(result)} rows")
 
-        return jsonify({'status': 'success', 'dates': dates}), 200
+        dates = [row['report_date'].strftime('%Y-%m-%d') for row in result] if result else []
+        print(f"  Returning {len(dates)} report dates")
+
+        return jsonify({'success': True, 'dates': dates}), 200
 
     except Exception as e:
-        print('get_report_dates exception:- ', e)
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        print('!!! EXCEPTION in api_get_fund_projection_report_dates:', str(e))
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
-# New route to fetch report data for a specific date
-@application.route('/get_report_data', methods=['GET'])
-def get_report_data():
+@application.route('/api/fund-projection/report-data', methods=['GET'])
+@jwt_required()
+def api_get_fund_projection_report_data():
+    print("→ ENTER api_get_fund_projection_report_data")
     try:
-        bank_id = request.args.get('bank_id')
+        bank_id     = request.args.get('bank_id')
         report_date = request.args.get('report_date')
+        print(f"  bank_id = {bank_id}, report_date = {report_date}")
+
         if not bank_id or not report_date:
-            return jsonify({'status': 'error', 'message': 'Bank ID and report date are required'}), 400
+            print("  → Missing required parameter(s) → 400")
+            return jsonify({'success': False, 'error': 'Bank ID and report date are required'}), 400
 
-        # Parse the RFC1123 date string to a Python datetime object
-        report_date_obj = datetime.strptime(str(report_date), '%a, %d %b %Y %H:%M:%S GMT')
-
-        # Format the datetime object to a string compatible with PostgreSQL
-        formatted_report_date = report_date_obj.strftime('%Y-%m-%d %H:%M:%S')
-        report_date = formatted_report_date
-        print('report_date:- ', report_date)
-
-        query = f"""
+        query = """
             SELECT *
             FROM tbl_fund_projection_reports
-            WHERE bank_id = '{bank_id}'
-              AND date_trunc('second', created_at) = '{report_date}'::timestamp
-            LIMIT 1;
+            WHERE bank_id = %s
+              AND DATE(created_at) = %s
+            ORDER BY created_at DESC
+            LIMIT 1
         """
 
-        # Assuming fetch_records returns a list of dictionaries
-        result = fetch_records(query, is_print=True)
-        print(result)
+        result = fetch_records(query, (bank_id, report_date))
+        print(f"  fetch_records returned {len(result)} row(s)")
+
         if not result:
-            return jsonify({'status': 'error', 'message': 'No report found for the selected date'}), 404
+            print("  → No record found for this bank/date → 404")
+            return jsonify({'success': False, 'error': 'No report found for the selected date'}), 404
 
-        # Extract the first record
         record = result[0]
+        print("  → Processing most recent record")
 
-        # Convert the result to a dictionary, handling Decimal and datetime
+        def format_value(value, is_date=False):
+            if value is None:
+                return '0' if not is_date else ''
+            if is_date:
+                return value.strftime('%Y-%m-%d')
+            return str(value)
+
         report = {
-            'bank_id': str(record['bank_id']),
-            'account_balance': str(record['account_balance']) if record['account_balance'] is not None else '0',
-            'actual_data_date': record['actual_data_date'].strftime('%Y-%m-%d') if isinstance(record['actual_data_date'], date) else str(record['actual_data_date']),
-            'report_date': record['report_date'].strftime('%Y-%m-%d') if isinstance(record['report_date'], date) else str(record['report_date']),
-            'actual_portfolio': str(record['actual_portfolio']) if record['actual_portfolio'] is not None else '0',
-            'ten_percent_lien': str(record['ten_percent_lien']) if record['ten_percent_lien'] is not None else '0',
-            'total_lien_amount': str(record['total_lien_amount']) if record['total_lien_amount'] is not None else '0',
-            'actual_collateral_balance': str(record['actual_collateral_balance']) if record['actual_collateral_balance'] is not None else '0',
-            'surplus_shortfall': str(record['surplus_shortfall']) if record['surplus_shortfall'] is not None else '0',
-            'projected_disbursement': str(record['projected_disbursement']) if record['projected_disbursement'] is not None else '0',
-            'seasonal_affects': str(record['seasonal_affects']) if record['seasonal_affects'] is not None else '0',
-            'new_product_affects': str(record['new_product_affects']) if record['new_product_affects'] is not None else '0',
-            'total_projected_disbursement': str(record['total_projected_disbursement']) if record['total_projected_disbursement'] is not None else '0',
-            'projected_recoveries': str(record['projected_recoveries']) if record['projected_recoveries'] is not None else '0',
-            'projected_monthly_change': str(record['projected_monthly_change']) if record['projected_monthly_change'] is not None else '0',
-            'actual_portfolio_opening': str(record['actual_portfolio_opening']) if record['actual_portfolio_opening'] is not None else '0',
-            'add_projected_monthly_change': str(record['add_projected_monthly_change']) if record['add_projected_monthly_change'] is not None else '0',
-            'projected_portfolio_closing': str(record['projected_portfolio_closing']) if record['projected_portfolio_closing'] is not None else '0',
-            'cushion_ten_percent': str(record['cushion_ten_percent']) if record['cushion_ten_percent'] is not None else '0',
-            'projected_collateral_balance': str(record['projected_collateral_balance']) if record['projected_collateral_balance'] is not None else '0',
-            'actual_collateral_balance_req': str(record['actual_collateral_balance_req']) if record['actual_collateral_balance_req'] is not None else '0',
-            'surplus_shortfall_req': str(record['surplus_shortfall_req']) if record['surplus_shortfall_req'] is not None else '0'
+            'bank_id':                        format_value(record.get('bank_id')),
+            'account_balance':                format_value(record.get('account_balance')),
+            'actual_data_date':               format_value(record.get('actual_data_date'), True),
+            'report_date':                    format_value(record.get('report_date'), True),
+            'actual_portfolio':               format_value(record.get('actual_portfolio')),
+            'ten_percent_lien':               format_value(record.get('ten_percent_lien')),
+            'total_lien_amount':              format_value(record.get('total_lien_amount')),
+            'actual_collateral_balance':      format_value(record.get('actual_collateral_balance')),
+            'surplus_shortfall':              format_value(record.get('surplus_shortfall')),
+            'projected_disbursement':         format_value(record.get('projected_disbursement')),
+            'seasonal_affects':               format_value(record.get('seasonal_affects')),
+            'new_product_affects':            format_value(record.get('new_product_affects')),
+            'total_projected_disbursement':   format_value(record.get('total_projected_disbursement')),
+            'projected_recoveries':           format_value(record.get('projected_recoveries')),
+            'projected_monthly_change':       format_value(record.get('projected_monthly_change')),
+            'actual_portfolio_opening':       format_value(record.get('actual_portfolio_opening')),
+            'add_projected_monthly_change':   format_value(record.get('add_projected_monthly_change')),
+            'projected_portfolio_closing':    format_value(record.get('projected_portfolio_closing')),
+            'cushion_ten_percent':            format_value(record.get('cushion_ten_percent')),
+            'projected_collateral_balance':   format_value(record.get('projected_collateral_balance')),
+            'actual_collateral_balance_req':  format_value(record.get('actual_collateral_balance_req')),
+            'surplus_shortfall_req':          format_value(record.get('surplus_shortfall_req')),
+            'created_at':                     format_value(record.get('created_at'), True),
         }
 
-        return jsonify({'status': 'success', 'report': report}), 200
+        print("  → Report dictionary prepared → returning 200")
+        return jsonify({'success': True, 'report': report}), 200
 
     except Exception as e:
-        print('get_report_data exception:', e)
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        print('!!! EXCEPTION in api_get_fund_projection_report_data:', str(e))
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @application.route('/fund_projected_vs_disbursement')
@@ -386,4 +491,5 @@ def get_loan_projection_report_data():
 
     except Exception as e:
         print("Error:", str(e))
+
         return jsonify({'success': False, 'error': str(e)})
