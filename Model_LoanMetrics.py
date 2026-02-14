@@ -13,7 +13,7 @@ def get_all_loan_metrics():
         JOIN tbl_experience_ranges er ON lm.experience_id = er.experience_range_id
         LEFT JOIN tbl_users uc on uc.user_id = lm.created_by
         LEFT JOIN tbl_users um on um.user_id = lm.modified_by
-        WHERE lm.is_active = '1' AND lm.status = '1'
+        WHERE lm.status = '1'
     """
     print(query)
     result = fetch_records(query)
