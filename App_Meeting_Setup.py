@@ -234,90 +234,6 @@ def api_delete_action_item(post_meeting_id):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-@application.route('/api/meeting-categories', methods=['GET'])
-@jwt_required()
-def api_get_meeting_categories():
-    try:
-        categories = get_all_meeting_categories()
-        return jsonify({"success": True, "data": categories}), 200
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
-
-
-@application.route('/api/meeting-category', methods=['POST'])
-@application.route('/api/meeting-category/<int:category_id>', methods=['PUT'])
-@jwt_required()
-def api_save_meeting_category(category_id=None):
-    try:
-        if not (is_admin() or is_executive_approver()):  # or check JWT claims
-            return jsonify({"success": False, "message": "Unauthorized"}), 403
-
-        data = request.get_json()
-        if not data.get('meeting_category_name'):
-            return jsonify({"success": False, "message": "Name is required"}), 400
-
-        user_id = get_jwt_identity()
-        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-        if category_id:  # Update
-            query = """
-                UPDATE tbl_meeting_categories
-                SET meeting_category_code = %s,
-                    meeting_category_name = %s,
-                    status = 1,
-                    modified_by = %s,
-                    modified_date = %s
-                WHERE meeting_category_id = %s
-            """
-            params = (
-                data.get('meeting_category_code'),
-                data['meeting_category_name'],
-                user_id,
-                now,
-                category_id
-            )
-        else:  # Insert
-            query = """
-                INSERT INTO tbl_meeting_categories
-                (meeting_category_code, meeting_category_name, status, created_by, created_date, modified_by, modified_date)
-                VALUES (%s, %s, 1, %s, %s, %s, %s)
-                RETURNING meeting_category_id
-            """
-            params = (
-                data.get('meeting_category_code'),
-                data['meeting_category_name'],
-                user_id,
-                now,
-                user_id,
-                now
-            )
-
-        execute_command(query, params)
-        return jsonify({"success": True, "message": "Category saved"}), 200
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
-
-
-@application.route('/api/meeting-category/<int:category_id>', methods=['DELETE'])
-@jwt_required()
-def api_delete_meeting_category(category_id):
-    try:
-        if not (is_admin() or is_executive_approver()):
-            return jsonify({"success": False, "message": "Unauthorized"}), 403
-
-        user_id = get_jwt_identity()
-        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        query = """
-            UPDATE tbl_meeting_categories
-            SET status = 2, modified_by = %s, modified_date = %s
-            WHERE meeting_category_id = %s
-        """
-        execute_command(query, (user_id, now, category_id))
-        return jsonify({"success": True, "message": "Category deleted"}), 200
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
-
-
 @application.route('/api/get-master-book-action-items', methods=['POST'])
 @jwt_required()
 def get_master_book_action_items():
@@ -450,4 +366,1205 @@ def api_schedule_meeting(mand_meet_id):
 
     except Exception as e:
         print('API schedule meeting exception:', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+
+# ==================== MEETING SETUP API ROUTES ====================
+@application.route('/api/manage-meeting-setup', methods=['GET'])
+@jwt_required()
+def api_manage_meeting_setup():
+    """API endpoint to get all meeting setup data for the dashboard"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        data = {
+            'meeting_categories': get_all_meeting_categories(),
+            'meeting_frequencies': get_all_meeting_frequencies(),
+            'meeting_priorities': get_all_meeting_priorities(),
+            'pre_meeting_status': get_all_pre_meeting_status(),
+            'post_meeting_status': get_all_post_meeting_status(),
+            'meeting_action_items': get_all_meeting_action_items(),
+            'meeting_action_items_priorities': get_all_meeting_action_items_priorities(),
+            'meeting_action_items_status': get_all_meeting_action_items_status(),
+            'mandatory_meetings': get_all_mandatory_meetings(),
+            'national_council_distributions': get_all_national_council_distributions()
+        }
+
+        return jsonify({
+            'success': True,
+            'data': data
+        }), 200
+
+    except Exception as e:
+        print('api_manage_meeting_setup exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ==================== MEETING CATEGORIES API ====================
+@application.route('/api/meeting-categories', methods=['GET'])
+@jwt_required()
+def api_get_all_meeting_categories():
+    """API endpoint to get all meeting categories"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        categories = get_all_meeting_categories()
+        return jsonify({
+            'success': True,
+            'data': categories
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-categories/<int:meeting_category_id>', methods=['GET'])
+@jwt_required()
+def api_get_meeting_category(meeting_category_id):
+    """API endpoint to get a single meeting category by ID"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        query = f"""
+            SELECT meeting_category_id, meeting_category_code, meeting_category_name, status, 
+                   created_by, created_date, modified_by, modified_date
+            FROM tbl_meeting_categories 
+            WHERE meeting_category_id = {meeting_category_id} AND status != 3
+        """
+        category = fetch_records(query)
+        category = category[0] if category else None
+
+        if category:
+            return jsonify({
+                'success': True,
+                'data': {'meeting_category': category}
+            }), 200
+        else:
+            return jsonify({'success': False, 'message': 'Meeting category not found'}), 404
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-categories', methods=['POST'])
+@application.route('/api/meeting-categories/<int:meeting_category_id>', methods=['POST'])
+@jwt_required()
+def api_save_meeting_category(meeting_category_id=None):
+    """API endpoint to create or update a meeting category"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        data = request.get_json()
+
+        meeting_category_code = data.get('meeting_category_code')
+        meeting_category_name = data.get('meeting_category_name')
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        meeting_category_code_escaped = escape_sql_string(meeting_category_code)
+        meeting_category_name_escaped = escape_sql_string(meeting_category_name)
+
+        if meeting_category_id:  # UPDATE
+            update_query = f"""
+                UPDATE tbl_meeting_categories 
+                SET meeting_category_code = {meeting_category_code_escaped},
+                    meeting_category_name = {meeting_category_name_escaped},
+                    status = 1,
+                    modified_by = {current_user_id},
+                    modified_date = '{current_time}'
+                WHERE meeting_category_id = {meeting_category_id}
+            """
+            execute_command(update_query)
+            message = 'Meeting category updated successfully'
+        else:  # INSERT
+            insert_query = f"""
+                INSERT INTO tbl_meeting_categories
+                (meeting_category_code, meeting_category_name, status, created_by, created_date, modified_by, modified_date)
+                VALUES ({meeting_category_code_escaped}, {meeting_category_name_escaped}, 1, 
+                        {current_user_id}, '{current_time}', {current_user_id}, '{current_time}')
+            """
+            execute_command(insert_query)
+            message = 'Meeting category added successfully'
+
+        return jsonify({
+            'success': True,
+            'message': message
+        }), 200
+
+    except Exception as e:
+        print('api_save_meeting_category exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-categories/<int:meeting_category_id>', methods=['DELETE'])
+@jwt_required()
+def api_delete_meeting_category(meeting_category_id):
+    """API endpoint to delete a meeting category (soft delete)"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        delete_query = f"""
+            UPDATE tbl_meeting_categories 
+            SET status = 2, modified_by = {current_user_id}, modified_date = '{current_time}'
+            WHERE meeting_category_id = {meeting_category_id}
+        """
+        execute_command(delete_query)
+
+        return jsonify({
+            'success': True,
+            'message': 'Meeting category deleted successfully'
+        }), 200
+
+    except Exception as e:
+        print('api_delete_meeting_category exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ==================== MEETING FREQUENCIES API ====================
+
+@application.route('/api/meeting-frequencies', methods=['GET'])
+@jwt_required()
+def api_get_all_meeting_frequencies():
+    """API endpoint to get all meeting frequencies"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        frequencies = get_all_meeting_frequencies()
+        return jsonify({
+            'success': True,
+            'data': frequencies
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-frequencies/<int:meeting_freq_id>', methods=['GET'])
+@jwt_required()
+def api_get_meeting_frequency(meeting_freq_id):
+    """API endpoint to get a single meeting frequency by ID"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        query = f"""
+            SELECT meeting_freq_id, meeting_freq_title, min_freq, max_freq, status, 
+                   created_by, created_date, modified_by, modified_date
+            FROM tbl_meeting_frequencies 
+            WHERE meeting_freq_id = {meeting_freq_id} AND status != 3
+        """
+        frequency = fetch_records(query)
+        frequency = frequency[0] if frequency else None
+
+        if frequency:
+            return jsonify({
+                'success': True,
+                'data': {'meeting_frequency': frequency}
+            }), 200
+        else:
+            return jsonify({'success': False, 'message': 'Meeting frequency not found'}), 404
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-frequencies', methods=['POST'])
+@application.route('/api/meeting-frequencies/<int:meeting_freq_id>', methods=['POST'])
+@jwt_required()
+def api_save_meeting_frequency(meeting_freq_id=None):
+    """API endpoint to create or update a meeting frequency"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        data = request.get_json()
+
+        meeting_freq_title = data.get('meeting_freq_title')
+        min_freq = data.get('min_freq')
+        max_freq = data.get('max_freq')
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        meeting_freq_title_escaped = escape_sql_string(meeting_freq_title)
+
+        if meeting_freq_id:  # UPDATE
+            update_query = f"""
+                UPDATE tbl_meeting_frequencies 
+                SET meeting_freq_title = {meeting_freq_title_escaped},
+                    min_freq = {min_freq},
+                    max_freq = {max_freq},
+                    status = 1,
+                    modified_by = {current_user_id},
+                    modified_date = '{current_time}'
+                WHERE meeting_freq_id = {meeting_freq_id}
+            """
+            execute_command(update_query)
+            message = 'Meeting frequency updated successfully'
+        else:  # INSERT
+            insert_query = f"""
+                INSERT INTO tbl_meeting_frequencies 
+                (meeting_freq_title, min_freq, max_freq, status, created_by, created_date, modified_by, modified_date)
+                VALUES ({meeting_freq_title_escaped}, {min_freq}, {max_freq}, 1, 
+                        {current_user_id}, '{current_time}', {current_user_id}, '{current_time}')
+            """
+            execute_command(insert_query)
+            message = 'Meeting frequency added successfully'
+
+        return jsonify({
+            'success': True,
+            'message': message
+        }), 200
+
+    except Exception as e:
+        print('api_save_meeting_frequency exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-frequencies/<int:meeting_freq_id>', methods=['DELETE'])
+@jwt_required()
+def api_delete_meeting_frequency(meeting_freq_id):
+    """API endpoint to delete a meeting frequency (soft delete)"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        delete_query = f"""
+            UPDATE tbl_meeting_frequencies 
+            SET status = 2, modified_by = {current_user_id}, modified_date = '{current_time}'
+            WHERE meeting_freq_id = {meeting_freq_id}
+        """
+        execute_command(delete_query)
+
+        return jsonify({
+            'success': True,
+            'message': 'Meeting frequency deleted successfully'
+        }), 200
+
+    except Exception as e:
+        print('api_delete_meeting_frequency exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ==================== MEETING PRIORITIES API ====================
+
+@application.route('/api/meeting-priorities', methods=['GET'])
+@jwt_required()
+def api_get_all_meeting_priorities():
+    """API endpoint to get all meeting priorities"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        priorities = get_all_meeting_priorities()
+        return jsonify({
+            'success': True,
+            'data': priorities
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-priorities/<int:meeting_priority_id>', methods=['GET'])
+@jwt_required()
+def api_get_meeting_priority(meeting_priority_id):
+    """API endpoint to get a single meeting priority by ID"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        query = f"""
+            SELECT meeting_priority_id, meeting_priority_name, status, 
+                   created_by, created_date, modified_by, modified_date
+            FROM tbl_meeting_priorities 
+            WHERE meeting_priority_id = {meeting_priority_id} AND status != 3
+        """
+        priority = fetch_records(query)
+        priority = priority[0] if priority else None
+
+        if priority:
+            return jsonify({
+                'success': True,
+                'data': {'meeting_priority': priority}
+            }), 200
+        else:
+            return jsonify({'success': False, 'message': 'Meeting priority not found'}), 404
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-priorities', methods=['POST'])
+@application.route('/api/meeting-priorities/<int:meeting_priority_id>', methods=['POST'])
+@jwt_required()
+def api_save_meeting_priority(meeting_priority_id=None):
+    """API endpoint to create or update a meeting priority"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        data = request.get_json()
+
+        meeting_priority_name = data.get('meeting_priority_name')
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        meeting_priority_name_escaped = escape_sql_string(meeting_priority_name)
+
+        if meeting_priority_id:  # UPDATE
+            update_query = f"""
+                UPDATE tbl_meeting_priorities 
+                SET meeting_priority_name = {meeting_priority_name_escaped},
+                    status = 1,
+                    modified_by = {current_user_id},
+                    modified_date = '{current_time}'
+                WHERE meeting_priority_id = {meeting_priority_id}
+            """
+            execute_command(update_query)
+            message = 'Meeting priority updated successfully'
+        else:  # INSERT
+            insert_query = f"""
+                INSERT INTO tbl_meeting_priorities 
+                (meeting_priority_name, status, created_by, created_date, modified_by, modified_date)
+                VALUES ({meeting_priority_name_escaped}, 1, 
+                        {current_user_id}, '{current_time}', {current_user_id}, '{current_time}')
+            """
+            execute_command(insert_query)
+            message = 'Meeting priority added successfully'
+
+        return jsonify({
+            'success': True,
+            'message': message
+        }), 200
+
+    except Exception as e:
+        print('api_save_meeting_priority exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-priorities/<int:meeting_priority_id>', methods=['DELETE'])
+@jwt_required()
+def api_delete_meeting_priority(meeting_priority_id):
+    """API endpoint to delete a meeting priority (soft delete)"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        delete_query = f"""
+            UPDATE tbl_meeting_priorities 
+            SET status = 2, modified_by = {current_user_id}, modified_date = '{current_time}'
+            WHERE meeting_priority_id = {meeting_priority_id}
+        """
+        execute_command(delete_query)
+
+        return jsonify({
+            'success': True,
+            'message': 'Meeting priority deleted successfully'
+        }), 200
+
+    except Exception as e:
+        print('api_delete_meeting_priority exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ==================== PRE-MEETING STATUS API ====================
+
+@application.route('/api/pre-meeting-status', methods=['GET'])
+@jwt_required()
+def api_get_all_pre_meeting_status():
+    """API endpoint to get all pre-meeting statuses"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        statuses = get_all_pre_meeting_status()
+        return jsonify({
+            'success': True,
+            'data': statuses
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/pre-meeting-status/<int:pre_ms_id>', methods=['GET'])
+@jwt_required()
+def api_get_pre_meeting_status(pre_ms_id):
+    """API endpoint to get a single pre-meeting status by ID"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        query = f"""
+            SELECT pre_ms_id, pre_ms_name, status, 
+                   created_by, created_date, modified_by, modified_date
+            FROM tbl_pre_meeting_status 
+            WHERE pre_ms_id = {pre_ms_id} AND status != 3
+        """
+        status = fetch_records(query)
+        status = status[0] if status else None
+
+        if status:
+            return jsonify({
+                'success': True,
+                'data': {'pre_meeting_status': status}
+            }), 200
+        else:
+            return jsonify({'success': False, 'message': 'Pre-meeting status not found'}), 404
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/pre-meeting-status', methods=['POST'])
+@application.route('/api/pre-meeting-status/<int:pre_ms_id>', methods=['POST'])
+@jwt_required()
+def api_save_pre_meeting_status(pre_ms_id=None):
+    """API endpoint to create or update a pre-meeting status"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        data = request.get_json()
+
+        pre_ms_name = data.get('pre_ms_name')
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        pre_ms_name_escaped = escape_sql_string(pre_ms_name)
+
+        if pre_ms_id:  # UPDATE
+            update_query = f"""
+                UPDATE tbl_pre_meeting_status 
+                SET pre_ms_name = {pre_ms_name_escaped},
+                    status = 1,
+                    modified_by = {current_user_id},
+                    modified_date = '{current_time}'
+                WHERE pre_ms_id = {pre_ms_id}
+            """
+            execute_command(update_query)
+            message = 'Pre-meeting status updated successfully'
+        else:  # INSERT
+            insert_query = f"""
+                INSERT INTO tbl_pre_meeting_status 
+                (pre_ms_name, status, created_by, created_date, modified_by, modified_date)
+                VALUES ({pre_ms_name_escaped}, 1, 
+                        {current_user_id}, '{current_time}', {current_user_id}, '{current_time}')
+            """
+            execute_command(insert_query)
+            message = 'Pre-meeting status added successfully'
+
+        return jsonify({
+            'success': True,
+            'message': message
+        }), 200
+
+    except Exception as e:
+        print('api_save_pre_meeting_status exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/pre-meeting-status/<int:pre_ms_id>', methods=['DELETE'])
+@jwt_required()
+def api_delete_pre_meeting_status(pre_ms_id):
+    """API endpoint to delete a pre-meeting status (soft delete)"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        delete_query = f"""
+            UPDATE tbl_pre_meeting_status 
+            SET status = 2, modified_by = {current_user_id}, modified_date = '{current_time}'
+            WHERE pre_ms_id = {pre_ms_id}
+        """
+        execute_command(delete_query)
+
+        return jsonify({
+            'success': True,
+            'message': 'Pre-meeting status deleted successfully'
+        }), 200
+
+    except Exception as e:
+        print('api_delete_pre_meeting_status exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ==================== POST-MEETING STATUS API ====================
+
+@application.route('/api/post-meeting-status', methods=['GET'])
+@jwt_required()
+def api_get_all_post_meeting_status():
+    """API endpoint to get all post-meeting statuses"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        statuses = get_all_post_meeting_status()
+        return jsonify({
+            'success': True,
+            'data': statuses
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/post-meeting-status/<int:post_ms_id>', methods=['GET'])
+@jwt_required()
+def api_get_post_meeting_status(post_ms_id):
+    """API endpoint to get a single post-meeting status by ID"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        query = f"""
+            SELECT post_ms_id, post_ms_name, status, 
+                   created_by, created_date, modified_by, modified_date
+            FROM tbl_post_meeting_status 
+            WHERE post_ms_id = {post_ms_id} AND status != 3
+        """
+        status = fetch_records(query)
+        status = status[0] if status else None
+
+        if status:
+            return jsonify({
+                'success': True,
+                'data': {'post_meeting_status': status}
+            }), 200
+        else:
+            return jsonify({'success': False, 'message': 'Post-meeting status not found'}), 404
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/post-meeting-status', methods=['POST'])
+@application.route('/api/post-meeting-status/<int:post_ms_id>', methods=['POST'])
+@jwt_required()
+def api_save_post_meeting_status(post_ms_id=None):
+    """API endpoint to create or update a post-meeting status"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        data = request.get_json()
+
+        post_ms_name = data.get('post_ms_name')
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        post_ms_name_escaped = escape_sql_string(post_ms_name)
+
+        if post_ms_id:  # UPDATE
+            update_query = f"""
+                UPDATE tbl_post_meeting_status 
+                SET post_ms_name = {post_ms_name_escaped},
+                    status = 1,
+                    modified_by = {current_user_id},
+                    modified_date = '{current_time}'
+                WHERE post_ms_id = {post_ms_id}
+            """
+            execute_command(update_query)
+            message = 'Post-meeting status updated successfully'
+        else:  # INSERT
+            insert_query = f"""
+                INSERT INTO tbl_post_meeting_status 
+                (post_ms_name, status, created_by, created_date, modified_by, modified_date)
+                VALUES ({post_ms_name_escaped}, 1, 
+                        {current_user_id}, '{current_time}', {current_user_id}, '{current_time}')
+            """
+            execute_command(insert_query)
+            message = 'Post-meeting status added successfully'
+
+        return jsonify({
+            'success': True,
+            'message': message
+        }), 200
+
+    except Exception as e:
+        print('api_save_post_meeting_status exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/post-meeting-status/<int:post_ms_id>', methods=['DELETE'])
+@jwt_required()
+def api_delete_post_meeting_status(post_ms_id):
+    """API endpoint to delete a post-meeting status (soft delete)"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        delete_query = f"""
+            UPDATE tbl_post_meeting_status 
+            SET status = 2, modified_by = {current_user_id}, modified_date = '{current_time}'
+            WHERE post_ms_id = {post_ms_id}
+        """
+        execute_command(delete_query)
+
+        return jsonify({
+            'success': True,
+            'message': 'Post-meeting status deleted successfully'
+        }), 200
+
+    except Exception as e:
+        print('api_delete_post_meeting_status exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ==================== MEETING ACTION ITEMS API ====================
+
+@application.route('/api/meeting-action-items', methods=['GET'])
+@jwt_required()
+def api_get_all_meeting_action_items():
+    """API endpoint to get all meeting action items"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        items = get_all_meeting_action_items()
+        return jsonify({
+            'success': True,
+            'data': items
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-action-items/<int:mai_id>', methods=['GET'])
+@jwt_required()
+def api_get_meeting_action_item(mai_id):
+    """API endpoint to get a single meeting action item by ID"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        query = f"""
+            SELECT mai_id, mai_name, status, 
+                   created_by, created_date, modified_by, modified_date
+            FROM tbl_meeting_action_items 
+            WHERE mai_id = {mai_id} AND status != 3
+        """
+        item = fetch_records(query)
+        item = item[0] if item else None
+
+        if item:
+            return jsonify({
+                'success': True,
+                'data': {'meeting_action_item': item}
+            }), 200
+        else:
+            return jsonify({'success': False, 'message': 'Meeting action item not found'}), 404
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-action-items', methods=['POST'])
+@application.route('/api/meeting-action-items/<int:mai_id>', methods=['POST'])
+@jwt_required()
+def api_save_meeting_action_item(mai_id=None):
+    """API endpoint to create or update a meeting action item"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        data = request.get_json()
+
+        mai_name = data.get('mai_name')
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        mai_name_escaped = escape_sql_string(mai_name)
+
+        if mai_id:  # UPDATE
+            update_query = f"""
+                UPDATE tbl_meeting_action_items 
+                SET mai_name = {mai_name_escaped},
+                    status = 1,
+                    modified_by = {current_user_id},
+                    modified_date = '{current_time}'
+                WHERE mai_id = {mai_id}
+            """
+            execute_command(update_query)
+            message = 'Meeting action item updated successfully'
+        else:  # INSERT
+            insert_query = f"""
+                INSERT INTO tbl_meeting_action_items 
+                (mai_name, status, created_by, created_date, modified_by, modified_date)
+                VALUES ({mai_name_escaped}, 1, 
+                        {current_user_id}, '{current_time}', {current_user_id}, '{current_time}')
+            """
+            execute_command(insert_query)
+            message = 'Meeting action item added successfully'
+
+        return jsonify({
+            'success': True,
+            'message': message
+        }), 200
+
+    except Exception as e:
+        print('api_save_meeting_action_item exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-action-items/<int:mai_id>', methods=['DELETE'])
+@jwt_required()
+def api_delete_meeting_action_item(mai_id):
+    """API endpoint to delete a meeting action item (soft delete)"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        delete_query = f"""
+            UPDATE tbl_meeting_action_items 
+            SET status = 2, modified_by = {current_user_id}, modified_date = '{current_time}'
+            WHERE mai_id = {mai_id}
+        """
+        execute_command(delete_query)
+
+        return jsonify({
+            'success': True,
+            'message': 'Meeting action item deleted successfully'
+        }), 200
+
+    except Exception as e:
+        print('api_delete_meeting_action_item exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ==================== MEETING ACTION ITEMS PRIORITIES API ====================
+
+@application.route('/api/meeting-action-items-priorities', methods=['GET'])
+@jwt_required()
+def api_get_all_meeting_action_items_priorities():
+    """API endpoint to get all meeting action items priorities"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        priorities = get_all_meeting_action_items_priorities()
+        return jsonify({
+            'success': True,
+            'data': priorities
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-action-items-priorities/<int:maip_id>', methods=['GET'])
+@jwt_required()
+def api_get_meeting_action_item_priority(maip_id):
+    """API endpoint to get a single meeting action item priority by ID"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        query = f"""
+            SELECT maip_id, maip_name, status, 
+                   created_by, created_date, modified_by, modified_date
+            FROM tbl_meeting_action_items_priorities 
+            WHERE maip_id = {maip_id} AND status != 3
+        """
+        priority = fetch_records(query)
+        priority = priority[0] if priority else None
+
+        if priority:
+            return jsonify({
+                'success': True,
+                'data': {'meeting_action_item_priority': priority}
+            }), 200
+        else:
+            return jsonify({'success': False, 'message': 'Meeting action item priority not found'}), 404
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-action-items-priorities', methods=['POST'])
+@application.route('/api/meeting-action-items-priorities/<int:maip_id>', methods=['POST'])
+@jwt_required()
+def api_save_meeting_action_item_priority(maip_id=None):
+    """API endpoint to create or update a meeting action item priority"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        data = request.get_json()
+
+        maip_name = data.get('maip_name')
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        maip_name_escaped = escape_sql_string(maip_name)
+
+        if maip_id:  # UPDATE
+            update_query = f"""
+                UPDATE tbl_meeting_action_items_priorities 
+                SET maip_name = {maip_name_escaped},
+                    status = 1,
+                    modified_by = {current_user_id},
+                    modified_date = '{current_time}'
+                WHERE maip_id = {maip_id}
+            """
+            execute_command(update_query)
+            message = 'Meeting action item priority updated successfully'
+        else:  # INSERT
+            insert_query = f"""
+                INSERT INTO tbl_meeting_action_items_priorities 
+                (maip_name, status, created_by, created_date, modified_by, modified_date)
+                VALUES ({maip_name_escaped}, 1, 
+                        {current_user_id}, '{current_time}', {current_user_id}, '{current_time}')
+            """
+            execute_command(insert_query)
+            message = 'Meeting action item priority added successfully'
+
+        return jsonify({
+            'success': True,
+            'message': message
+        }), 200
+
+    except Exception as e:
+        print('api_save_meeting_action_item_priority exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-action-items-priorities/<int:maip_id>', methods=['DELETE'])
+@jwt_required()
+def api_delete_meeting_action_item_priority(maip_id):
+    """API endpoint to delete a meeting action item priority (soft delete)"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        delete_query = f"""
+            UPDATE tbl_meeting_action_items_priorities 
+            SET status = 2, modified_by = {current_user_id}, modified_date = '{current_time}'
+            WHERE maip_id = {maip_id}
+        """
+        execute_command(delete_query)
+
+        return jsonify({
+            'success': True,
+            'message': 'Meeting action item priority deleted successfully'
+        }), 200
+
+    except Exception as e:
+        print('api_delete_meeting_action_item_priority exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ==================== MEETING ACTION ITEMS STATUS API ====================
+
+@application.route('/api/meeting-action-items-status', methods=['GET'])
+@jwt_required()
+def api_get_all_meeting_action_items_status():
+    """API endpoint to get all meeting action items statuses"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        statuses = get_all_meeting_action_items_status()
+        return jsonify({
+            'success': True,
+            'data': statuses
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-action-items-status/<int:mais_id>', methods=['GET'])
+@jwt_required()
+def api_get_meeting_action_item_status(mais_id):
+    """API endpoint to get a single meeting action item status by ID"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        query = f"""
+            SELECT mais_id, mais_name, status, 
+                   created_by, created_date, modified_by, modified_date
+            FROM tbl_meeting_action_items_status 
+            WHERE mais_id = {mais_id} AND status != 3
+        """
+        status = fetch_records(query)
+        status = status[0] if status else None
+
+        if status:
+            return jsonify({
+                'success': True,
+                'data': {'meeting_action_item_status': status}
+            }), 200
+        else:
+            return jsonify({'success': False, 'message': 'Meeting action item status not found'}), 404
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-action-items-status', methods=['POST'])
+@application.route('/api/meeting-action-items-status/<int:mais_id>', methods=['POST'])
+@jwt_required()
+def api_save_meeting_action_item_status(mais_id=None):
+    """API endpoint to create or update a meeting action item status"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        data = request.get_json()
+
+        mais_name = data.get('mais_name')
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        mais_name_escaped = escape_sql_string(mais_name)
+
+        if mais_id:  # UPDATE
+            update_query = f"""
+                UPDATE tbl_meeting_action_items_status 
+                SET mais_name = {mais_name_escaped},
+                    status = 1,
+                    modified_by = {current_user_id},
+                    modified_date = '{current_time}'
+                WHERE mais_id = {mais_id}
+            """
+            execute_command(update_query)
+            message = 'Meeting action item status updated successfully'
+        else:  # INSERT
+            insert_query = f"""
+                INSERT INTO tbl_meeting_action_items_status 
+                (mais_name, status, created_by, created_date, modified_by, modified_date)
+                VALUES ({mais_name_escaped}, 1, 
+                        {current_user_id}, '{current_time}', {current_user_id}, '{current_time}')
+            """
+            execute_command(insert_query)
+            message = 'Meeting action item status added successfully'
+
+        return jsonify({
+            'success': True,
+            'message': message
+        }), 200
+
+    except Exception as e:
+        print('api_save_meeting_action_item_status exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/meeting-action-items-status/<int:mais_id>', methods=['DELETE'])
+@jwt_required()
+def api_delete_meeting_action_item_status(mais_id):
+    """API endpoint to delete a meeting action item status (soft delete)"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        delete_query = f"""
+            UPDATE tbl_meeting_action_items_status 
+            SET status = 2, modified_by = {current_user_id}, modified_date = '{current_time}'
+            WHERE mais_id = {mais_id}
+        """
+        execute_command(delete_query)
+
+        return jsonify({
+            'success': True,
+            'message': 'Meeting action item status deleted successfully'
+        }), 200
+
+    except Exception as e:
+        print('api_delete_meeting_action_item_status exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ==================== MANDATORY MEETINGS API ====================
+
+@application.route('/api/mandatory-meetings', methods=['GET'])
+@jwt_required()
+def api_get_all_mandatory_meetings():
+    """API endpoint to get all mandatory meetings"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        meetings = get_all_mandatory_meetings()
+        return jsonify({
+            'success': True,
+            'data': meetings
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/mandatory-meetings/<int:mand_meet_id>', methods=['GET'])
+@jwt_required()
+def api_get_mandatory_meeting(mand_meet_id):
+    """API endpoint to get a single mandatory meeting by ID"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        query = f"""
+            SELECT mand_meet_id, meeting_category_id, meeting_freq_id, proposed_month, nc_disb_id, 
+                   resp_committ, meeting_priority_id, status, created_by, created_date, modified_by, modified_date
+            FROM tbl_mandatory_meetings 
+            WHERE mand_meet_id = {mand_meet_id} AND status != 3
+        """
+        meeting = fetch_records(query)
+        meeting = meeting[0] if meeting else None
+
+        if meeting:
+            return jsonify({
+                'success': True,
+                'data': {'mandatory_meeting': meeting}
+            }), 200
+        else:
+            return jsonify({'success': False, 'message': 'Mandatory meeting not found'}), 404
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/mandatory-meetings', methods=['POST'])
+@application.route('/api/mandatory-meetings/<int:mand_meet_id>', methods=['POST'])
+@jwt_required()
+def api_save_mandatory_meeting(mand_meet_id=None):
+    """API endpoint to create or update a mandatory meeting"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        data = request.get_json()
+
+        meeting_category_id = data.get('meeting_category_id')
+        meeting_freq_id = data.get('meeting_freq_id')
+        proposed_month = data.get('proposed_month')
+        nc_disb_id = data.get('nc_disb_id')
+        resp_committ = data.get('resp_committ')
+        meeting_priority_id = data.get('meeting_priority_id')
+
+        # Convert proposed_month (YYYY-MM) to a full date (YYYY-MM-01)
+        if proposed_month:
+            proposed_month = f"{proposed_month}-01"
+        else:
+            proposed_month = None
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        resp_committ_escaped = escape_sql_string(resp_committ) if resp_committ else 'NULL'
+
+        if mand_meet_id:  # UPDATE
+            update_query = f"""
+                UPDATE tbl_mandatory_meetings 
+                SET meeting_category_id = {meeting_category_id},
+                    meeting_freq_id = {meeting_freq_id},
+                    proposed_month = '{proposed_month}',
+                    nc_disb_id = {nc_disb_id},
+                    resp_committ = {resp_committ_escaped},
+                    meeting_priority_id = {meeting_priority_id},
+                    status = 1,
+                    modified_by = {current_user_id},
+                    modified_date = '{current_time}'
+                WHERE mand_meet_id = {mand_meet_id}
+            """
+            execute_command(update_query)
+            message = 'Mandatory meeting updated successfully'
+        else:  # INSERT
+            insert_query = f"""
+                INSERT INTO tbl_mandatory_meetings 
+                (meeting_category_id, meeting_freq_id, proposed_month, nc_disb_id, resp_committ, 
+                 meeting_priority_id, status, created_by, created_date, modified_by, modified_date)
+                VALUES ({meeting_category_id}, {meeting_freq_id}, '{proposed_month}', {nc_disb_id}, 
+                        {resp_committ_escaped}, {meeting_priority_id}, 1, 
+                        {current_user_id}, '{current_time}', {current_user_id}, '{current_time}')
+            """
+            execute_command(insert_query)
+            message = 'Mandatory meeting added successfully'
+
+        return jsonify({
+            'success': True,
+            'message': message
+        }), 200
+
+    except Exception as e:
+        print('api_save_mandatory_meeting exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@application.route('/api/mandatory-meetings/<int:mand_meet_id>', methods=['DELETE'])
+@jwt_required()
+def api_delete_mandatory_meeting(mand_meet_id):
+    """API endpoint to delete a mandatory meeting (soft delete)"""
+    try:
+        if not is_login() or not (is_admin() or is_executive_approver()):
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        current_user_id = get_current_user_id()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        delete_query = f"""
+            UPDATE tbl_mandatory_meetings 
+            SET status = 2, modified_by = {current_user_id}, modified_date = '{current_time}'
+            WHERE mand_meet_id = {mand_meet_id}
+        """
+        execute_command(delete_query)
+
+        return jsonify({
+            'success': True,
+            'message': 'Mandatory meeting deleted successfully'
+        }), 200
+
+    except Exception as e:
+        print('api_delete_mandatory_meeting exception:- ', str(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ==================== NATIONAL COUNCIL DISTRIBUTIONS API (Helper) ====================
+
+@application.route('/api/national-council-distributions', methods=['GET'])
+@jwt_required()
+def api_get_all_national_council_distributions():
+    """API endpoint to get all national council distributions"""
+    try:
+        if not is_login():
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+        distributions = get_all_national_council_distributions()
+        return jsonify({
+            'success': True,
+            'data': distributions
+        }), 200
+    except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
