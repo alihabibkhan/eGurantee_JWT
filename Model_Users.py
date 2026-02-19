@@ -40,6 +40,7 @@ def get_all_user_data():
         FROM tbl_users u
         LEFT JOIN tbl_users u1 ON u1.user_id = u.created_by
         -- NO join to tbl_branch_role here — the subquery handles it
+        WHERE u.active != 0
         ORDER BY u.user_id;
     """
     print(query)
