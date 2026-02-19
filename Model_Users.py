@@ -4,7 +4,7 @@ from imports import *
 def get_all_user_data():
 
     query = """
-        SELECT DISTINCT
+        SELECT 
             u.user_id,
             u.name,
             u.email,
@@ -17,7 +17,21 @@ def get_all_user_data():
             u.date_of_joining,
             u.orientation_completed_on,
             u.manager_id,
-            STRING_AGG(br.branch_role_name, ', ') AS assigned_branch,
+            
+            -- This returns json array or [] 
+            COALESCE(
+                (SELECT json_agg(br.branch_role_id ORDER BY br.branch_role_id)
+                 FROM unnest(u.assigned_branch) AS role_id
+                 LEFT JOIN tbl_branch_role br ON br.branch_role_id = role_id),
+                '[]'::json
+            ) AS assigned_branch_roles,
+            -- This returns json array or [] 
+            COALESCE(
+                (SELECT json_agg(br.branch_role_name ORDER BY br.branch_role_name)
+                 FROM unnest(u.assigned_branch) AS role_id
+                 LEFT JOIN tbl_branch_role br ON br.branch_role_id = role_id),
+                '[]'::json
+            ) AS assigned_branch_roles_names,
             u.date_of_retirement,
             u.reason,
             u1.name AS created_by_name,
@@ -25,25 +39,7 @@ def get_all_user_data():
             u.active
         FROM tbl_users u
         LEFT JOIN tbl_users u1 ON u1.user_id = u.created_by
-        LEFT JOIN tbl_branch_role br ON br.branch_role_id = ANY (u.assigned_branch)
-        GROUP BY
-            u.user_id,
-            u.name,
-            u.email,
-            u.rights,
-            u.volunteer_id,
-            u.gender,
-            u.dob,
-            u.phone,
-            u.country_of_residence,
-            u.date_of_joining,
-            u.orientation_completed_on,
-            u.manager_id,
-            u.date_of_retirement,
-            u.reason,
-            u1.name,
-            u.created_date,
-            u.active
+        -- NO join to tbl_branch_role here — the subquery handles it
         ORDER BY u.user_id;
     """
     print(query)
