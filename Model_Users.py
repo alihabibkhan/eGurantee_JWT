@@ -80,7 +80,7 @@ def get_all_user_privileges():
         INNER JOIN tbl_users u ON p.user_id = u.user_id
         LEFT JOIN tbl_users u1 ON p.created_by = u1.user_id
         LEFT JOIN tbl_users u2 ON p.modified_by = u2.user_id
-        WHERE p.status = 1
+        WHERE p.status != 0
     """
     print(query)
     result = fetch_records(query)
@@ -106,7 +106,7 @@ def get_all_user_privileges_by_user_id(user_id):
         INNER JOIN tbl_users u ON p.user_id = u.user_id
         LEFT JOIN tbl_users u1 ON p.created_by = u1.user_id
         LEFT JOIN tbl_users u2 ON p.modified_by = u2.user_id
-        WHERE p.status = 1 AND p.user_id = '{user_id}'
+        WHERE p.status != 0 AND p.user_id = '{user_id}'
     """
     result = fetch_records(query, is_print=True)
     print('printing result of get_all_user_privileges_by_user_id')

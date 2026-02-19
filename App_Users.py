@@ -79,14 +79,14 @@ def api_get_user(user_id):
             # Get user privileges
             priv_query = f"""
                 SELECT * FROM tbl_user_privileges 
-                WHERE user_id = '{user_id}' AND status = 1
+                WHERE user_id = '{user_id}' AND status != 0
             """
             user['privileges'] = fetch_records(priv_query)
 
             # Get user service terms
             terms_query = f"""
                 SELECT * FROM tbl_user_service_terms 
-                WHERE user_id = '{user_id}' AND status = 1
+                WHERE user_id = '{user_id}' AND status != 0
             """
             user['service_terms'] = fetch_records(terms_query)
 
@@ -106,10 +106,16 @@ def api_get_user(user_id):
 def api_create_user():
     """API endpoint to create a new user"""
     try:
+        print("→ api_create_user called")
+
         if not is_login() or not (is_admin() or is_executive_approver()):
+            print("→ Unauthorized access attempt")
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
+        print("→ Authorization passed")
+
         data = request.get_json()
+        print("→ Received JSON data:", data)
 
         name = data.get('name')
         email = data.get('email')
@@ -127,6 +133,11 @@ def api_create_user():
         date_of_retirement = data.get('date_of_retirement')
         reason = data.get('reason')
 
+        print(f"→ name = {name}")
+        print(f"→ email = {email}")
+        print(f"→ rights = {rights}")
+        print(f"→ assigned_branches = {assigned_branches}")
+
         # Handle NULL values for optional fields
         gender = f"'{gender}'" if gender else 'NULL'
         dob = f"'{dob}'" if dob else 'NULL'
@@ -140,9 +151,16 @@ def api_create_user():
         date_of_retirement = f"'{date_of_retirement}'" if date_of_retirement else 'NULL'
         reason = f"'{reason}'" if reason else 'NULL'
 
+        print("→ Prepared SQL-safe values:")
+        print(f"   gender = {gender}")
+        print(f"   dob = {dob}")
+        print(f"   assigned_branch = {assigned_branch}")
+
         # Generate password
         password = generate_random_password()
         hashed_password = generate_password_hash(password)
+        print("→ Generated password (plain):", password)
+        print("→ Hashed password length:", len(hashed_password))
 
         insert_query = f"""
             INSERT INTO tbl_users (
@@ -157,10 +175,16 @@ def api_create_user():
             ) RETURNING user_id
         """
 
-        result = execute_command(insert_query)
-        new_user_id = result[0]['user_id'] if result else None
+        print("→ Final INSERT query:")
+        print(insert_query.replace("    ", "").strip())   # cleaner output
 
-        # Send email with credentials (async or background task recommended)
+        result = execute_command(insert_query)
+        print("→ execute_command result:", result)
+
+        new_user_id = result
+        print("→ Created user_id:", new_user_id)
+
+        # Send email with credentials
         url = "https://egurantee-hlut.onrender.com/"
         subject = "Welcome to eGurantee System"
         html_message = f"""
@@ -170,10 +194,13 @@ def api_create_user():
             <a href="{url}">You can login through this link.</a>
         """
 
-        # Import email function - consider using Celery/Redis for async email
+        print("→ Preparing to send email to:", email)
+
         from Model_Email import send_email
         send_email(subject, [email], None, html_message=html_message)
+        print("→ Email function called")
 
+        print("→ Request completed successfully")
         return jsonify({
             'success': True,
             'message': 'User created successfully. Password has been sent to the user.',
@@ -182,6 +209,9 @@ def api_create_user():
 
     except Exception as e:
         print('api_create_user exception:- ', str(e))
+        import traceback
+        print("→ Full traceback:")
+        traceback.print_exc()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -353,7 +383,7 @@ def api_get_user_privileges(user_id):
 
         query = f"""
             SELECT * FROM tbl_user_privileges 
-            WHERE user_id = '{user_id}' AND status = 1
+            WHERE user_id = '{user_id}' AND status != 0
         """
         privileges = fetch_records(query)
 
@@ -396,7 +426,7 @@ def api_create_user_privilege():
         """
 
         result = execute_command(insert_query)
-        new_id = result[0]['id'] if result else None
+        new_id = result
 
         return jsonify({
             'success': True,
@@ -434,6 +464,9 @@ def api_update_user_privilege(privilege_id):
                 modified_date = '{current_time}'
             WHERE id = '{privilege_id}'
         """
+
+        print('update_query')
+        print(update_query)
 
         execute_command(update_query)
 
@@ -482,7 +515,7 @@ def api_get_user_service_terms(user_id):
 
         query = f"""
             SELECT * FROM tbl_user_service_terms 
-            WHERE user_id = '{user_id}' AND status = 1
+            WHERE user_id = '{user_id}' AND status != 0
         """
         terms = fetch_records(query)
 
@@ -532,7 +565,7 @@ def api_create_user_service_term():
         """
 
         result = execute_command(insert_query)
-        new_id = result[0]['id'] if result else None
+        new_id = result
 
         return jsonify({
             'success': True,
