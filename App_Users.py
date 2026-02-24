@@ -649,7 +649,7 @@ def api_delete_user_service_term(term_id):
 
 # ==================== BRANCHES API (Helper) ====================
 
-@application.route('/api/branches', methods=['GET'])
+@application.route('/api/branches/data', methods=['GET'])
 def api_get_all_branches():
     """API endpoint to get all branches"""
     try:

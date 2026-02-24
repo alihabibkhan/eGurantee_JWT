@@ -2,7 +2,7 @@ from imports import *
 from application import application
 
 
-@application.route('/api/bank-details', methods=['GET'])
+@application.route('/api/manage-bank-details', methods=['GET'])
 @jwt_required()
 def get_all_bank_details_api():
     """Get all bank details"""
