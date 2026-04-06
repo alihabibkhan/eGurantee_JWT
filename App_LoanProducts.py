@@ -28,7 +28,7 @@ def api_get_loan_product(product_id):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         query = f"""
-            SELECT product_id, product_code, name, gender, description, status, 
+            SELECT product_id, product_code, max_exp_per_prud_reg, name, gender, description, status, 
                    created_by, created_date, modified_by, modified_date
             FROM tbl_loan_products 
             WHERE product_id = '{product_id}' AND status = '1'
@@ -61,6 +61,7 @@ def api_save_loan_product(product_id=None):
 
         name = data.get('name')
         product_code = data.get('product_code')
+        max_exp_per_prud_reg = data.get('max_exp_per_prud_reg')
         gender = data.get('gender', 'Male')
         description = data.get('description', '')
 
@@ -71,7 +72,8 @@ def api_save_loan_product(product_id=None):
             update_query = f"""
                 UPDATE tbl_loan_products 
                 SET name = '{name}', 
-                    product_code = '{product_code}', 
+                    product_code = '{product_code}',
+                    max_exp_per_prud_reg = '{max_exp_per_prud_reg}', 
                     gender = '{gender}', 
                     description = '{description}', 
                     status = '1', 
@@ -85,11 +87,11 @@ def api_save_loan_product(product_id=None):
             insert_query = f"""
                 INSERT INTO tbl_loan_products (
                     name, product_code, gender, description, status, 
-                    created_by, created_date, modified_by, modified_date
+                    created_by, created_date, modified_by, modified_date, max_exp_per_prud_reg
                 ) VALUES (
                     '{name}', '{product_code}', '{gender}', '{description}', '1', 
                     '{current_user_id}', '{current_timestamp}', 
-                    '{current_user_id}', '{current_timestamp}'
+                    '{current_user_id}', '{current_timestamp}', {max_exp_per_prud_reg}
                 )
             """
             execute_command(insert_query)
