@@ -745,7 +745,7 @@ def approval_letter(app_no):
             'borrower_name': record[0].get('Borrower_Name'),
             'application_no': record[0].get('Application_No'),
             'loan_amount': record[0].get('Loan_Amount'),
-            'kft_approved_limit': record[0].get('KFT_Approved_Loan_Limit'),
+            'kft_approved_limit': record[0].get('kft_approved_loan_limit'),
             'application_date': record[0].get('ApplicationDate'),
             'father_husband_name': record[0].get('Father_Husband_Name'),
             'cnic': record[0].get('CNIC'),
