@@ -9,7 +9,7 @@ from application import application
 @jwt_required()
 def api_branch_role_crud(role_id=None):
     identity = get_jwt_identity()
-    if not (is_admin() or is_executive_approver()):
+    if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-branch-role") or PermissionHelper.has_permission(get_current_user_id(), "/delete-branch-role")):
         return jsonify({"error": "insufficient permissions"}), 403
 
     try:

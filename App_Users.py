@@ -14,7 +14,7 @@ def generate_random_password():
 def api_get_all_users():
     """API endpoint to get all users"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/manage_users")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         users = get_all_user_data()
@@ -31,7 +31,7 @@ def api_get_all_users():
 def api_get_user_management_data():
     """API endpoint to get all data for user management dashboard"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/manage_users")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         data = {
@@ -55,7 +55,7 @@ def api_get_user_management_data():
 def api_get_user(user_id):
     """API endpoint to get a single user by ID"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-user")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         query = f"""
@@ -108,7 +108,7 @@ def api_create_user():
     try:
         print("→ api_create_user called")
 
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-user")):
             print("→ Unauthorized access attempt")
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
@@ -219,7 +219,7 @@ def api_create_user():
 def api_update_user(user_id):
     """API endpoint to update an existing user"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-user")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         data = request.get_json()
@@ -280,7 +280,7 @@ def api_update_user(user_id):
 def api_upload_user_signature(user_id):
     """API endpoint to upload user signature image"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-user")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         if 'scan_sign' not in request.files:
@@ -352,7 +352,7 @@ def api_get_user_signature(user_id):
 def api_delete_user(user_id):
     """API endpoint to soft delete a user"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/delete-user")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         delete_query = f"""
@@ -378,7 +378,7 @@ def api_delete_user(user_id):
 def api_get_user_privileges(user_id):
     """API endpoint to get all privileges for a user"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/manage-user-privileges")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         query = f"""
@@ -401,7 +401,7 @@ def api_get_user_privileges(user_id):
 def api_create_user_privilege():
     """API endpoint to create a new user privilege"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-user-privileges")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         data = request.get_json()
@@ -443,7 +443,7 @@ def api_create_user_privilege():
 def api_update_user_privilege(privilege_id):
     """API endpoint to update a user privilege"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-user-privileges")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         data = request.get_json()
@@ -484,7 +484,7 @@ def api_update_user_privilege(privilege_id):
 def api_delete_user_privilege(privilege_id):
     """API endpoint to soft delete a user privilege"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/delete-user-privilege")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         delete_query = f"""
@@ -510,7 +510,7 @@ def api_delete_user_privilege(privilege_id):
 def api_get_user_service_terms(user_id):
     """API endpoint to get all service terms for a user"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/manage-user-service-term")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         query = f"""
@@ -533,7 +533,7 @@ def api_get_user_service_terms(user_id):
 def api_create_user_service_term():
     """API endpoint to create a new user service term"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-user-service-term")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         data = request.get_json()
@@ -582,7 +582,7 @@ def api_create_user_service_term():
 def api_update_user_service_term(term_id):
     """API endpoint to update a user service term"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-user-service-term")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         data = request.get_json()
@@ -627,7 +627,7 @@ def api_update_user_service_term(term_id):
 def api_delete_user_service_term(term_id):
     """API endpoint to soft delete a user service term"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/delete-user-service-term")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         delete_query = f"""
@@ -671,7 +671,7 @@ def api_get_all_branches():
 def api_get_all_user_privileges_master():
     """API endpoint to get all user privileges master data"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-user")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         privileges = get_all_user_privileges()
@@ -689,7 +689,7 @@ def api_get_all_user_privileges_master():
 def api_get_all_user_service_terms_master():
     """API endpoint to get all user service terms master data"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-user")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         terms = get_all_user_service_terms()
@@ -707,7 +707,7 @@ def api_get_all_user_service_terms_master():
 def api_get_all_branch_roles():
     """API endpoint to get all branch roles"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-user")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         roles = get_all_branch_roles()
@@ -717,3 +717,37 @@ def api_get_all_branch_roles():
         }), 200
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ========================= NEW ENDPOINT =========================
+@application.route('/api/user-permissions-route', methods=['GET'])
+@jwt_required()
+def get_user_permissions_route():
+    try:
+        user_id = get_jwt_identity()  # This gets the user_id stored in JWT
+
+        # Using your existing PermissionHelper logic (recommended)
+        query = f"""
+            SELECT wp.route, wp.permission_key 
+            FROM tbl_user_permissions up
+            JOIN tbl_web_permissions wp ON up.web_permission_id = wp.web_permission_id
+            WHERE up.user_id = {get_current_user_id()} 
+              AND up.status = 1 
+              AND wp.status = 1
+        """
+
+        permissions = fetch_records(query)  # your existing helper function
+
+        # Format response
+        perm_list = []
+        for row in permissions:
+            perm_list.append({
+                "route": row.get('route'),
+                "permission_key": row.get('permission_key')
+            })
+
+        return jsonify(perm_list), 200
+
+    except Exception as e:
+        print('Error fetching user permissions:', str(e))
+        return jsonify([]), 200  # Return empty list instead of error (safer for frontend)

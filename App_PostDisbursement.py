@@ -173,7 +173,7 @@ def api_get_post_disbursement_filters():
     try:
         current_user = get_jwt_identity()
         # Add role validation if needed
-        if not (is_admin() or is_executive_approver()):
+        if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/post_disbursement_report")):
             return jsonify({'error': 'Unauthorized access'}), 403
 
         # Fetch filter options
@@ -214,7 +214,7 @@ def api_get_post_disbursement_report():
         current_user = get_jwt_identity()
 
         #Add role validation if needed
-        if not (is_admin() or is_executive_approver()):
+        if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/post_disbursement_report")):
             return jsonify({'error': 'Unauthorized access'}), 403
 
         filters = request.get_json()

@@ -7,7 +7,7 @@ from application import application
 def api_get_all_occupations():
     """API endpoint to get all occupations"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/manage_occupations")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         occupations = get_all_occupations()
@@ -24,7 +24,7 @@ def api_get_all_occupations():
 def api_get_occupation(occupation_id):
     """API endpoint to get a single occupation by ID"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-occupation")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         query = f"""
@@ -50,7 +50,7 @@ def api_get_occupation(occupation_id):
 def api_save_occupation(occupation_id=None):
     """API endpoint to create or update an occupation"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-occupation")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         data = request.get_json()
@@ -97,7 +97,7 @@ def api_save_occupation(occupation_id=None):
 def api_delete_occupation(occupation_id):
     """API endpoint to delete an occupation (soft delete)"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/delete-occupation")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         delete_query = f"""

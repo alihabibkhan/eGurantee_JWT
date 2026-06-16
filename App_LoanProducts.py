@@ -7,7 +7,7 @@ from application import application
 def api_get_all_loan_products():
     """API endpoint to get all loan products"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/manage_loan_products")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         products = get_all_loan_products()
@@ -24,7 +24,7 @@ def api_get_all_loan_products():
 def api_get_loan_product(product_id):
     """API endpoint to get a single loan product by ID"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(),"/add-edit-loan-product")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         query = f"""
@@ -54,7 +54,7 @@ def api_get_loan_product(product_id):
 def api_save_loan_product(product_id=None):
     """API endpoint to create or update a loan product"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(),"/add-edit-loan-product")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         data = request.get_json()
@@ -112,7 +112,7 @@ def api_save_loan_product(product_id=None):
 def api_delete_loan_product(product_id):
     """API endpoint to delete a loan product (soft delete)"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/delete-loan-product")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         delete_query = f"""

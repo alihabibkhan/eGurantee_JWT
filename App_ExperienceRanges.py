@@ -7,7 +7,7 @@ from application import application
 def api_get_all_experience_ranges():
     """API endpoint to get all experience ranges"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/manage_experience_ranges")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         ranges = get_all_experience_ranges()
@@ -24,7 +24,7 @@ def api_get_all_experience_ranges():
 def api_get_experience_range(experience_range_id):
     """API endpoint to get a single experience range by ID"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-experience-range")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         query = f"""
@@ -54,7 +54,7 @@ def api_get_experience_range(experience_range_id):
 def api_save_experience_range(experience_range_id=None):
     """API endpoint to create or update an experience range"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-experience-range")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         data = request.get_json()
@@ -107,7 +107,7 @@ def api_save_experience_range(experience_range_id=None):
 def api_delete_experience_range(experience_range_id):
     """API endpoint to delete an experience range (soft delete)"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/delete-experience-range")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         delete_query = f"""

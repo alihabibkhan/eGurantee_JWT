@@ -357,6 +357,12 @@ from App_Branch_Role import *
 from App_User_Self_Update_Community import *
 from App_Meeting_Setup import *
 from App_Announcements import *
+from Manage_Web_Permission import *
+from Manage_User_Permission import *
+from pre_disbursement_cron_report import *
+from image_zip_cron_report import *
+from post_disb_cron_report import *
+from auto_approval_app_report import *
 
 if __name__ == '__main__':
     application.run(debug=True, port=8080)

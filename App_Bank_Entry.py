@@ -7,7 +7,7 @@ from application import application
 def api_get_all_bank_details():
     try:
         # Add your user role validation here
-        if not (is_admin() or is_executive_approver()):
+        if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/manage-bank-entries")):
             return jsonify({'error': 'Unauthorized access'}), 403
 
         banks = get_all_bank_details()  # Your existing function
@@ -21,7 +21,7 @@ def api_get_all_bank_details():
 @jwt_required()
 def api_get_all_bank_entries():
     try:
-        if not (is_admin() or is_executive_approver()):
+        if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/manage-bank-entries")):
             return jsonify({'error': 'Unauthorized access'}), 403
 
         # Optional: Add filters from query parameters
@@ -52,7 +52,7 @@ def api_get_all_bank_entries():
 @jwt_required()
 def api_add_bank_entry():
     try:
-        if not (is_admin() or is_executive_approver()):
+        if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-bank-entry")):
             return jsonify({'error': 'Unauthorized access'}), 403
 
         data = request.get_json()
@@ -123,7 +123,7 @@ def api_add_bank_entry():
 @jwt_required()
 def api_update_bank_entry(bank_entry_id):
     try:
-        if not (is_admin() or is_executive_approver()):
+        if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/edit-bank-entry")):
             return jsonify({'error': 'Unauthorized access'}), 403
 
         data = request.get_json()
@@ -181,7 +181,7 @@ def api_update_bank_entry(bank_entry_id):
 @jwt_required()
 def api_delete_bank_entry(bank_entry_id):
     try:
-        if not (is_admin() or is_executive_approver()):
+        if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/delete-bank-entry")):
             return jsonify({'error': 'Unauthorized access'}), 403
 
         check_query = f"SELECT bank_entry_id FROM tbl_bank_entry_management WHERE bank_entry_id = {bank_entry_id}"

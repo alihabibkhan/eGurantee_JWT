@@ -10,7 +10,7 @@ from application import application
 @jwt_required()
 def api_create_bank_distribution():
     try:
-        if not (is_admin() or is_executive_approver()):  # ← adapt if needed
+        if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-bank-distribution")):  # ← adapt if needed
             return jsonify({"error": "Insufficient permissions"}), 403
 
         user_id = get_current_user_id()

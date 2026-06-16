@@ -17,7 +17,7 @@ def api_national_council_distribution_crud(distribution_id=None):
     identity = get_jwt_identity()
     print("JWT Identity:", identity)
 
-    if not (is_admin() or is_executive_approver()):
+    if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-national-council-distribution") or PermissionHelper.has_permission(get_current_user_id(), "/delete-national-council-distribution")):
         print("Permission denied")
         return jsonify({"error": "insufficient permissions"}), 403
 

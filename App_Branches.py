@@ -10,7 +10,7 @@ from application import application
 @jwt_required()
 def api_get_branches():
     identity = get_jwt_identity()
-    if not (is_admin() or is_executive_approver()):
+    if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/manage-branches")):
         return jsonify({"error": "insufficient permissions"}), 403
 
     bank_details = get_all_bank_details()
@@ -43,7 +43,7 @@ def api_branch_crud(branch_id=None):
     identity = get_jwt_identity()
     print(f"→ api_branch_crud | method={request.method} | branch_id={branch_id} | user={identity}")
 
-    if not (is_admin() or is_executive_approver()):
+    if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-branch")):
         print("   → Access denied: not admin or executive approver")
         return jsonify({"error": "insufficient permissions"}), 403
 
@@ -213,7 +213,7 @@ def api_branch_crud(branch_id=None):
 @jwt_required()
 def api_delete_branch(branch_id):
     identity = get_jwt_identity()
-    if not (is_admin() or is_executive_approver()):
+    if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/delete-branch")):
         return jsonify({"error": "insufficient permissions"}), 403
 
     try:

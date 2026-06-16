@@ -10,7 +10,7 @@ def api_get_fund_projection_filters():
         current_user = get_jwt_identity()
         print(f"  current_user from JWT: {current_user}")
 
-        if not (is_admin() or is_executive_approver()):
+        if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/fund-projection-report")):
             print("  → Unauthorized - not admin or executive approver")
             return jsonify({'error': 'Unauthorized access'}), 403
 
@@ -60,7 +60,7 @@ def api_save_fund_projection():
         current_user = get_jwt_identity()
         print(f"  current_user: {current_user}")
 
-        if not (is_admin() or is_executive_approver()):
+        if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/fund-projection-report")):
             print("  → Unauthorized access attempt")
             return jsonify({'error': 'Unauthorized access'}), 403
 
@@ -279,7 +279,7 @@ def api_get_fund_projection_report_data():
 
 @application.route('/api/fund_projected_vs_disbursement', methods=['GET'])
 def api_fund_projected_vs_disbursement():
-    if not (is_login() and (is_admin() or is_executive_approver())):
+    if not (is_login() and (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/fund_projected_vs_disbursement"))):
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
 
     try:

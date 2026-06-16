@@ -556,7 +556,7 @@ def update_pre_disbursement_temp():
             print(f"Rejected record insert executed for post_disb_id: {pre_disb_temp_id}")
 
             from Model_Email import send_email
-            
+
             query = f"""
                 select pdt."Application_No", pdt."Borrower_Name", pdt."Requested_Loan_Amount", pdt."LoanProductCode", u1.email as reviewed_by_email, u2.email as rejected_by_email,
                 b.email, b.branch, b.branch_name

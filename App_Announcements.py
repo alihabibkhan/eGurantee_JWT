@@ -7,7 +7,7 @@ from application import application
 @jwt_required()
 def api_get_announcements():
     identity = get_jwt_identity()
-    if not (is_admin() or is_executive_approver()):
+    if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/manage-announcements")):
         return jsonify({"error": "insufficient permissions"}), 403
 
     try:
@@ -40,7 +40,7 @@ def api_get_announcements():
 @jwt_required()
 def api_get_announcement(ann_id):
     identity = get_jwt_identity()
-    if not (is_admin() or is_executive_approver()):
+    if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-announcement")):
         return jsonify({"error": "insufficient permissions"}), 403
 
     try:
@@ -74,7 +74,7 @@ def api_get_announcement(ann_id):
 @jwt_required()
 def api_create_announcement():
     identity = get_jwt_identity()
-    if not (is_admin() or is_executive_approver()):
+    if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-announcement")):
         return jsonify({"error": "insufficient permissions"}), 403
 
     try:
@@ -137,7 +137,7 @@ def api_create_announcement():
 @jwt_required()
 def api_update_announcement(ann_id):
     identity = get_jwt_identity()
-    if not (is_admin() or is_executive_approver()):
+    if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-announcement")):
         return jsonify({"error": "insufficient permissions"}), 403
 
     try:
@@ -202,7 +202,7 @@ def api_update_announcement(ann_id):
 @jwt_required()
 def api_delete_announcement(ann_id):
     identity = get_jwt_identity()
-    if not (is_admin() or is_executive_approver()):
+    if not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/delete-announcement")):
         return jsonify({"error": "insufficient permissions"}), 403
 
     try:

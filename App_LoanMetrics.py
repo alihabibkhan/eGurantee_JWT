@@ -7,7 +7,7 @@ from application import application
 def api_manage_loan_metrics():
     """API endpoint to get all loan metrics data for the dashboard"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/manage_loan_metrics")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         data = {
@@ -33,7 +33,7 @@ def api_manage_loan_metrics():
 def api_get_all_loan_metrics():
     """API endpoint to get all loan metrics"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/manage_loan_metrics")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         metrics = get_all_loan_metrics()
@@ -50,7 +50,7 @@ def api_get_all_loan_metrics():
 def api_get_loan_metric(loan_metric_id):
     """API endpoint to get a single loan metric by ID"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-loan-metric")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         query = f"""
@@ -91,7 +91,7 @@ def api_get_loan_metric(loan_metric_id):
 def api_save_loan_metric(loan_metric_id=None):
     """API endpoint to create or update a loan metric"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/add-edit-loan-metric")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         data = request.get_json()
@@ -161,7 +161,7 @@ def api_save_loan_metric(loan_metric_id=None):
 def api_delete_loan_metric(loan_metric_id):
     """API endpoint to delete a loan metric (soft delete)"""
     try:
-        if not is_login() or not (is_admin() or is_executive_approver()):
+        if not is_login() or not (is_admin() or is_executive_approver() or PermissionHelper.has_permission(get_current_user_id(), "/delete-loan-metric")):
             return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
         delete_query = f"""
