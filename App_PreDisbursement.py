@@ -697,7 +697,7 @@ def approval_letter(app_no):
     print(f"=== ENTERED approval_letter with app_no: {app_no} ===")
     try:
         query = f"""
-            SELECT "Borrower_Name", "Application_No", "Loan_Amount", KFT_Approved_Loan_Limit, "ApplicationDate", "Father_Husband_Name", "CNIC", "approved_date", "email_status" 
+            SELECT "Borrower_Name", "Application_No", "Loan_Amount", kft_approved_loan_limit, "ApplicationDate", "Father_Husband_Name", "CNIC", "approved_date", "email_status" 
             FROM tbl_pre_disbursement_temp 
             WHERE "pre_disb_temp_id" = '{str(app_no)}' AND "status" = '2'
         """
